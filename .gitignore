@@ -1,0 +1,43 @@
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Go binaries and build output
+gold-backend/gold
+gold-backend/bin/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Go test artifacts
+*.test
+*.out
+coverage.html
+coverage.out
+
+# Go vendor directory (if used)
+vendor/
+
+# Frontend
+gold-dashboard/node_modules/
+gold-dashboard/dist/
+gold-dashboard/.vite/
+
+# IDE and editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Docker volumes and local state
+postgres_data/
+redis_data/
+
+# Logs
+*.log
+logs/
