@@ -1,6 +1,8 @@
 export interface Candle {
-  openTime: number;
-  closeTime: number;
+  symbol: string;
+  interval: string;
+  openTime: string;
+  closeTime: string;
   openPrice: string;
   highPrice: string;
   lowPrice: string;
@@ -9,6 +11,23 @@ export interface Candle {
   quoteVolume: string;
   tradeCount: number;
   isClosed: boolean;
+}
+
+export interface ChartCandle {
+  time: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+}
+
+export interface PaginatedResponse<T> {
+  items: T[];
+  limit: number;
+  offset: number;
+  count: number;
+  hasMore: boolean;
 }
 
 export interface Position {
@@ -74,7 +93,10 @@ export interface Decision {
 export type TradingSymbol = "BTCUSDT" | "ETHUSDT" | "SOLUSDT" | "BNBUSDT";
 export type ChartInterval = "1m" | "5m" | "15m" | "1h" | "4h" | "1D";
 
-export interface WebSocketMessage {
-  type: "candle_update" | "position_update" | "metric_update" | "trade_executed" | "decision_made";
-  payload: unknown;
-}
+export type WebSocketMessage =
+  | { type: "candle_update"; payload: Candle }
+  | { type: "position_update"; payload: Position }
+  | { type: "position_closed"; payload: Position }
+  | { type: "trade_executed"; payload: Position }
+  | { type: "metric_update"; payload: PortfolioMetrics }
+  | { type: "decision_made"; payload: Decision };

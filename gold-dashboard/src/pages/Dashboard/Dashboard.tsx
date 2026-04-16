@@ -1,7 +1,14 @@
 import { NavLink, Routes, Route, Navigate } from "react-router-dom";
+import { useWebSocketLifecycle } from "../../hooks";
+import { useDashboardStore } from "../../store";
+import type { ConnectionState } from "../../api";
 import "./Dashboard.css";
 
 export function Dashboard() {
+  useWebSocketLifecycle();
+
+  const connectionState = useDashboardStore((s) => s.connectionState);
+
   return (
     <div className="dashboard">
       <header className="dashboard-metrics">
@@ -13,30 +20,31 @@ export function Dashboard() {
           <MetricItem label="Total Trades" value="0" />
           <MetricItem label="Open Positions" value="0" />
         </div>
+        <ConnectionBadge state={connectionState} />
       </header>
 
       <nav className="dashboard-tabs" aria-label="Dashboard sections">
         <NavLink
           to="/chart"
-          className={({ isActive }) => isActive ? "tab-link active" : "tab-link"}
+          className={({ isActive }) => (isActive ? "tab-link active" : "tab-link")}
         >
           Chart
         </NavLink>
         <NavLink
           to="/positions"
-          className={({ isActive }) => isActive ? "tab-link active" : "tab-link"}
+          className={({ isActive }) => (isActive ? "tab-link active" : "tab-link")}
         >
           Open Positions
         </NavLink>
         <NavLink
           to="/history"
-          className={({ isActive }) => isActive ? "tab-link active" : "tab-link"}
+          className={({ isActive }) => (isActive ? "tab-link active" : "tab-link")}
         >
           Trade History
         </NavLink>
         <NavLink
           to="/decisions"
-          className={({ isActive }) => isActive ? "tab-link active" : "tab-link"}
+          className={({ isActive }) => (isActive ? "tab-link active" : "tab-link")}
         >
           Decision Log
         </NavLink>
@@ -78,6 +86,26 @@ function MetricItem({ label, value, severity }: MetricItemProps) {
       >
         {value}
       </span>
+    </div>
+  );
+}
+
+interface ConnectionBadgeProps {
+  state: ConnectionState;
+}
+
+function ConnectionBadge({ state }: ConnectionBadgeProps) {
+  const label =
+    state === "open"
+      ? "Live"
+      : state === "connecting" || state === "reconnecting"
+      ? "Connecting\u2026"
+      : "Offline";
+
+  return (
+    <div className={`connection-badge connection-badge--${state}`} aria-live="polite" aria-label={`Connection status: ${label}`}>
+      <span className="connection-badge__dot" aria-hidden="true" />
+      <span className="connection-badge__label">{label}</span>
     </div>
   );
 }
