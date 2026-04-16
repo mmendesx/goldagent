@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useReducer, useState } from "react";
 import { useDashboardStore } from "../../store";
 import { restClient } from "../../api";
 import type { Decision, TradingSymbol } from "../../types";
@@ -7,33 +7,44 @@ import "./DecisionLog.css";
 const PAGE_SIZE = 100;
 const AVAILABLE_SYMBOLS: (TradingSymbol | "ALL")[] = ["ALL", "BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT"];
 
+type FetchState = { isLoading: boolean; errorMessage: string | null };
+type FetchAction =
+  | { type: "start" }
+  | { type: "success" }
+  | { type: "error"; message: string };
+
+function fetchReducer(_state: FetchState, action: FetchAction): FetchState {
+  switch (action.type) {
+    case "start": return { isLoading: true, errorMessage: null };
+    case "success": return { isLoading: false, errorMessage: null };
+    case "error": return { isLoading: false, errorMessage: action.message };
+  }
+}
+
 export function DecisionLog() {
   const decisions = useDashboardStore((state) => state.decisions);
   const setDecisions = useDashboardStore((state) => state.setDecisions);
-  const [isLoading, setIsLoading] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [{ isLoading, errorMessage }, dispatch] = useReducer(fetchReducer, { isLoading: true, errorMessage: null });
   const [symbolFilter, setSymbolFilter] = useState<TradingSymbol | "ALL">("ALL");
 
   // Initial load from REST
   useEffect(() => {
     let isCancelled = false;
-    setIsLoading(true);
-    setErrorMessage(null);
+    dispatch({ type: "start" });
 
     const symbolParam = symbolFilter === "ALL" ? undefined : symbolFilter;
 
     restClient
       .fetchDecisions(symbolParam, PAGE_SIZE, 0)
       .then((response) => {
-        if (!isCancelled) setDecisions(response.items);
+        if (isCancelled) return;
+        setDecisions(response.items);
+        dispatch({ type: "success" });
       })
       .catch((error: unknown) => {
         if (isCancelled) return;
         const message = error instanceof Error ? error.message : "Failed to load decisions";
-        setErrorMessage(message);
-      })
-      .finally(() => {
-        if (!isCancelled) setIsLoading(false);
+        dispatch({ type: "error", message });
       });
 
     return () => {

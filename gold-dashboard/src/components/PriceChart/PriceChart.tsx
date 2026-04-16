@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useReducer, useRef } from "react";
 import {
   createChart,
   createSeriesMarkers,
@@ -16,6 +16,20 @@ import { restClient } from "../../api";
 import { SymbolSelector } from "../SymbolSelector/SymbolSelector";
 import { IntervalButtons } from "../IntervalButtons/IntervalButtons";
 import "./PriceChart.css";
+
+type FetchState = { isLoading: boolean; errorMessage: string | null };
+type FetchAction =
+  | { type: "start" }
+  | { type: "success" }
+  | { type: "error"; message: string };
+
+function fetchReducer(_state: FetchState, action: FetchAction): FetchState {
+  switch (action.type) {
+    case "start": return { isLoading: true, errorMessage: null };
+    case "success": return { isLoading: false, errorMessage: null };
+    case "error": return { isLoading: false, errorMessage: action.message };
+  }
+}
 
 // Dark theme colors matching the dashboard design system
 const CHART_THEME = {
@@ -35,8 +49,7 @@ export function PriceChart() {
   const candlestickSeriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const volumeSeriesRef = useRef<ISeriesApi<"Histogram"> | null>(null);
   const markersApiRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [{ isLoading, errorMessage }, dispatch] = useReducer(fetchReducer, { isLoading: true, errorMessage: null });
 
   const selectedSymbol = useDashboardStore((state) => state.selectedSymbol);
   const selectedInterval = useDashboardStore((state) => state.selectedInterval);
@@ -113,8 +126,7 @@ export function PriceChart() {
   // Fetch historical candles when symbol or interval changes
   useEffect(() => {
     let isCancelled = false;
-    setIsLoading(true);
-    setErrorMessage(null);
+    dispatch({ type: "start" });
 
     restClient
       .fetchCandles({
@@ -128,14 +140,12 @@ export function PriceChart() {
         // Sort ascending by time — backend may return DESC order
         chartCandles.sort((a, b) => a.time - b.time);
         setCandlesForKey(candleKey(selectedSymbol, selectedInterval), chartCandles);
+        dispatch({ type: "success" });
       })
       .catch((error: unknown) => {
         if (isCancelled) return;
         const message = error instanceof Error ? error.message : "Failed to load candles";
-        setErrorMessage(message);
-      })
-      .finally(() => {
-        if (!isCancelled) setIsLoading(false);
+        dispatch({ type: "error", message });
       });
 
     return () => {

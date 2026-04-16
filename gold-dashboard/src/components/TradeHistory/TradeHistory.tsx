@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useReducer, useState } from "react";
 import { restClient } from "../../api";
 import { formatPrice } from "../../utils";
 import type { Position, TradingSymbol } from "../../types";
@@ -7,18 +7,30 @@ import "./TradeHistory.css";
 const PAGE_SIZE = 50;
 const AVAILABLE_SYMBOLS: (TradingSymbol | "ALL")[] = ["ALL", "BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT"];
 
+type FetchState = { isLoading: boolean; errorMessage: string | null };
+type FetchAction =
+  | { type: "start" }
+  | { type: "success" }
+  | { type: "error"; message: string };
+
+function fetchReducer(_state: FetchState, action: FetchAction): FetchState {
+  switch (action.type) {
+    case "start": return { isLoading: true, errorMessage: null };
+    case "success": return { isLoading: false, errorMessage: null };
+    case "error": return { isLoading: false, errorMessage: action.message };
+  }
+}
+
 export function TradeHistory() {
   const [positions, setPositions] = useState<Position[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [{ isLoading, errorMessage }, dispatch] = useReducer(fetchReducer, { isLoading: true, errorMessage: null });
   const [symbolFilter, setSymbolFilter] = useState<TradingSymbol | "ALL">("ALL");
   const [currentPage, setCurrentPage] = useState(0);
   const [hasMore, setHasMore] = useState(false);
 
   useEffect(() => {
     let isCancelled = false;
-    setIsLoading(true);
-    setErrorMessage(null);
+    dispatch({ type: "start" });
 
     restClient
       .fetchClosedPositions(PAGE_SIZE, currentPage * PAGE_SIZE)
@@ -26,14 +38,12 @@ export function TradeHistory() {
         if (isCancelled) return;
         setPositions(response.items);
         setHasMore(response.hasMore);
+        dispatch({ type: "success" });
       })
       .catch((error: unknown) => {
         if (isCancelled) return;
         const message = error instanceof Error ? error.message : "Failed to load trade history";
-        setErrorMessage(message);
-      })
-      .finally(() => {
-        if (!isCancelled) setIsLoading(false);
+        dispatch({ type: "error", message });
       });
 
     return () => {
