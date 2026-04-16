@@ -221,3 +221,19 @@ type PolymarketCryptoPrice struct {
 	Value     decimal.Decimal `json:"value"`
 	Timestamp time.Time       `json:"timestamp"`
 }
+
+// TradeIntent is emitted by the decision engine when a real order should be placed.
+// In dry-run mode, NO TradeIntent is ever emitted (decisions are still logged).
+// The executor consumes TradeIntents from a channel — it never sees the dry-run flag.
+type TradeIntent struct {
+	DecisionID                    int64
+	Symbol                        string
+	Side                          OrderSide       // BUY or SELL
+	EstimatedEntryPrice           decimal.Decimal // current market price at decision time
+	PositionSizeQuantity          decimal.Decimal // base asset quantity
+	SuggestedTakeProfit           decimal.Decimal // computed from ATR
+	SuggestedStopLoss             decimal.Decimal // computed from ATR
+	SuggestedTrailingStopDistance decimal.Decimal // ATR * trailing multiplier (or zero if disabled)
+	AtrValue                      decimal.Decimal // for downstream context
+	CreatedAt                     time.Time
+}
