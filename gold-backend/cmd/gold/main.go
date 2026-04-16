@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -13,6 +14,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
+	"github.com/mmendesx/goldagent/gold-backend/internal/config"
 )
 
 func main() {
@@ -21,12 +23,17 @@ func main() {
 	}))
 	slog.SetDefault(logger)
 
-	slog.Info("config loaded")
-
-	port := os.Getenv("GOLD_HTTP_PORT")
-	if port == "" {
-		port = "8080"
+	cfg, err := config.LoadConfiguration()
+	if err != nil {
+		slog.Error("failed to load configuration", "error", err)
+		os.Exit(1)
 	}
+
+	slog.Info("configuration loaded",
+		"dry_run", cfg.IsDryRunEnabled,
+		"symbols", cfg.Symbols,
+		"http_port", cfg.HttpPort,
+	)
 
 	router := chi.NewRouter()
 
@@ -44,8 +51,10 @@ func main() {
 
 	router.Get("/health", handleHealth)
 
+	serverAddress := fmt.Sprintf(":%d", cfg.HttpPort)
+
 	server := &http.Server{
-		Addr:         ":" + port,
+		Addr:         serverAddress,
 		Handler:      router,
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,
@@ -71,7 +80,7 @@ func main() {
 		close(shutdownComplete)
 	}()
 
-	slog.Info("server starting", "port", port)
+	slog.Info("server starting", "port", cfg.HttpPort)
 
 	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		slog.Error("server failed to start", "error", err)
