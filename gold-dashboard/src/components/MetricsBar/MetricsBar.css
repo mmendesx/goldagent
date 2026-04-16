@@ -1,0 +1,73 @@
+.metrics-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2rem;
+  padding: 1rem 1.5rem;
+  background: var(--color-surface-elevated);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.metric-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 100px;
+}
+
+.metric-label {
+  color: var(--color-text-secondary);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 500;
+}
+
+.metric-value {
+  color: var(--color-text-primary);
+  font-family: var(--font-mono);
+  font-size: 18px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  transition: color 0.3s ease;
+}
+
+.metric-value--low {
+  color: var(--color-positive);
+}
+
+.metric-value--medium {
+  color: var(--color-warning);
+}
+
+.metric-value--high {
+  color: var(--color-negative);
+}
+
+.circuit-breaker-alert {
+  margin-left: auto;
+  padding: 0.5rem 1rem;
+  background: rgba(239, 68, 68, 0.15);
+  color: var(--color-negative);
+  border: 1px solid var(--color-negative);
+  border-radius: var(--radius-medium);
+  font-weight: 600;
+  font-size: 13px;
+  animation: pulse-warning 2s ease-in-out infinite;
+}
+
+@keyframes pulse-warning {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+@media (max-width: 768px) {
+  .metrics-bar {
+    gap: 1rem;
+    padding: 0.75rem 1rem;
+  }
+
+  .metric-value {
+    font-size: 15px;
+  }
+}

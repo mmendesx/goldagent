@@ -1,25 +1,49 @@
+import { useEffect } from "react";
 import { NavLink, Routes, Route, Navigate } from "react-router-dom";
 import { useWebSocketLifecycle } from "../../hooks";
 import { useDashboardStore } from "../../store";
+import { restClient } from "../../api";
 import type { ConnectionState } from "../../api";
+import { MetricsBar } from "../../components/MetricsBar";
+import { OpenPositions } from "../../components/OpenPositions/OpenPositions";
+import { PriceChart } from "../../components/PriceChart/PriceChart";
+import { DecisionLog } from "../../components/DecisionLog/DecisionLog";
+import { TradeHistory } from "../../components/TradeHistory";
 import "./Dashboard.css";
 
 export function Dashboard() {
   useWebSocketLifecycle();
 
   const connectionState = useDashboardStore((s) => s.connectionState);
+  const setMetrics = useDashboardStore((state) => state.setMetrics);
+  const setOpenPositions = useDashboardStore((state) => state.setOpenPositions);
+  const setClosedPositions = useDashboardStore((state) => state.setClosedPositions);
+
+  useEffect(() => {
+    restClient
+      .fetchMetrics()
+      .then(setMetrics)
+      .catch((error) => console.warn("Failed to bootstrap metrics", error));
+  }, [setMetrics]);
+
+  useEffect(() => {
+    restClient
+      .fetchOpenPositions()
+      .then(setOpenPositions)
+      .catch((error) => console.warn("Failed to fetch open positions", error));
+  }, [setOpenPositions]);
+
+  useEffect(() => {
+    restClient
+      .fetchClosedPositions()
+      .then((res) => setClosedPositions(res.items))
+      .catch((error) => console.warn("Failed to fetch closed positions", error));
+  }, [setClosedPositions]);
 
   return (
     <div className="dashboard">
       <header className="dashboard-metrics">
-        <div className="metrics-bar-placeholder">
-          <MetricItem label="Balance" value="$0.00" />
-          <MetricItem label="Peak Balance" value="$0.00" />
-          <MetricItem label="Drawdown" value="0.00%" severity="low" />
-          <MetricItem label="Win Rate" value="0.0%" />
-          <MetricItem label="Total Trades" value="0" />
-          <MetricItem label="Open Positions" value="0" />
-        </div>
+        <MetricsBar />
         <ConnectionBadge state={connectionState} />
       </header>
 
@@ -52,40 +76,13 @@ export function Dashboard() {
 
       <main className="dashboard-content">
         <Routes>
-          <Route path="/chart" element={<div className="placeholder-panel">Chart — coming soon</div>} />
-          <Route path="/positions" element={<div className="placeholder-panel">Open Positions — coming soon</div>} />
-          <Route path="/history" element={<div className="placeholder-panel">Trade History — coming soon</div>} />
-          <Route path="/decisions" element={<div className="placeholder-panel">Decision Log — coming soon</div>} />
+          <Route path="/chart" element={<PriceChart />} />
+          <Route path="/positions" element={<OpenPositions />} />
+          <Route path="/history" element={<TradeHistory />} />
+          <Route path="/decisions" element={<DecisionLog />} />
           <Route path="/" element={<Navigate to="/chart" replace />} />
         </Routes>
       </main>
-    </div>
-  );
-}
-
-interface MetricItemProps {
-  label: string;
-  value: string;
-  severity?: "low" | "medium" | "high";
-}
-
-function MetricItem({ label, value, severity }: MetricItemProps) {
-  const severityColor =
-    severity === "high"
-      ? "var(--color-negative)"
-      : severity === "medium"
-      ? "var(--color-warning)"
-      : "var(--color-positive)";
-
-  return (
-    <div className="metric-item">
-      <span className="metric-label">{label}</span>
-      <span
-        className="metric-value"
-        style={severity ? { color: severityColor } : undefined}
-      >
-        {value}
-      </span>
     </div>
   );
 }
