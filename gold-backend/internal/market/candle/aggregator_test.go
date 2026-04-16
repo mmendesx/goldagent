@@ -43,6 +43,12 @@ func (f *fakeCandleRepository) FindCandlesByRange(
 	return nil, nil
 }
 
+func (f *fakeCandleRepository) FindCandlesByRangePaginated(
+	_ context.Context, _, _ string, _, _ time.Time, _, _ int,
+) ([]domain.Candle, error) {
+	return nil, nil
+}
+
 func (f *fakeCandleRepository) FindLatestCandles(
 	_ context.Context, _, _ string, _ int,
 ) ([]domain.Candle, error) {

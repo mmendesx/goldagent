@@ -51,6 +51,18 @@ func main() {
 
 	router.Get("/health", handleHealth)
 
+	// ICT-27 (full app composition) will wire the WebSocket hub here:
+	//
+	//   hub := websocket.NewHub(websocket.HubConfig{
+	//       CandleChannel:            aggregator.ClosedCandleChannel(),
+	//       PositionOpenedChannel:    executor.PositionOpenedChannel(),
+	//       MetricsProvider:          portfolioManager,
+	//       DecisionChannel:          decisionEngine.DecisionChannel(),
+	//       Logger:                   logger,
+	//   })
+	//   go hub.Run(appCtx)
+	//   router.Get("/ws/v1/stream", hub.HandleWebSocket)
+
 	serverAddress := fmt.Sprintf(":%d", cfg.HttpPort)
 
 	server := &http.Server{

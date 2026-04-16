@@ -18,6 +18,7 @@ type CandleRepository interface {
 	InsertCandlesBatch(ctx context.Context, candles []domain.Candle) error
 	UpsertCandle(ctx context.Context, candle domain.Candle) (int64, error)
 	FindCandlesByRange(ctx context.Context, symbol, interval string, from, to time.Time, limit int) ([]domain.Candle, error)
+	FindCandlesByRangePaginated(ctx context.Context, symbol, interval string, from, to time.Time, limit, offset int) ([]domain.Candle, error)
 	FindLatestCandles(ctx context.Context, symbol, interval string, limit int) ([]domain.Candle, error)
 }
 
@@ -150,6 +151,33 @@ func (r *candleRepository) FindCandlesByRange(
 	if err != nil {
 		return nil, fmt.Errorf("query candles for symbol %q interval %q range [%v, %v]: %w",
 			symbol, interval, from, to, err)
+	}
+	defer rows.Close()
+
+	return scanCandleRows(rows)
+}
+
+// FindCandlesByRangePaginated returns candles for a symbol+interval within [from, to]
+// with explicit limit and offset for pagination, ordered by open_time ascending.
+func (r *candleRepository) FindCandlesByRangePaginated(
+	ctx context.Context,
+	symbol, interval string,
+	from, to time.Time,
+	limit, offset int,
+) ([]domain.Candle, error) {
+	const query = `
+		SELECT id, symbol, interval, open_time, close_time,
+		       open_price::text, high_price::text, low_price::text, close_price::text,
+		       volume::text, quote_volume::text, trade_count, is_closed
+		FROM candles
+		WHERE symbol = $1 AND interval = $2 AND open_time >= $3 AND open_time <= $4
+		ORDER BY open_time ASC
+		LIMIT $5 OFFSET $6`
+
+	rows, err := r.pool.Query(ctx, query, symbol, interval, from, to, limit, offset)
+	if err != nil {
+		return nil, fmt.Errorf("query candles paginated for symbol %q interval %q range [%v, %v] limit %d offset %d: %w",
+			symbol, interval, from, to, limit, offset, err)
 	}
 	defer rows.Close()
 

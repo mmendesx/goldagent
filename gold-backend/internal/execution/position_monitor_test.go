@@ -348,6 +348,10 @@ func (r *fakeMonitorOrderRepository) FindOrdersBySymbol(_ context.Context, _ str
 	return nil, nil
 }
 
+func (r *fakeMonitorOrderRepository) FindRecentOrders(_ context.Context, _, _ int) ([]domain.Order, error) {
+	return nil, nil
+}
+
 // fakePortfolioRecorder records calls to RecordPositionClose.
 type fakePortfolioRecorder struct {
 	mu              sync.Mutex

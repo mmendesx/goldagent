@@ -17,6 +17,7 @@ type OrderRepository interface {
 	UpdateOrderStatus(ctx context.Context, id int64, status domain.OrderStatus, filledQty, filledPrice, fee decimal.Decimal, feeAsset string, rawResponse []byte) error
 	FindOrderByID(ctx context.Context, id int64) (*domain.Order, error)
 	FindOrdersBySymbol(ctx context.Context, symbol string, limit, offset int) ([]domain.Order, error)
+	FindRecentOrders(ctx context.Context, limit, offset int) ([]domain.Order, error)
 }
 
 type orderRepository struct {
@@ -134,6 +135,26 @@ func (r *orderRepository) FindOrdersBySymbol(ctx context.Context, symbol string,
 	rows, err := r.pool.Query(ctx, query, symbol, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("query orders for symbol %q limit %d offset %d: %w", symbol, limit, offset, err)
+	}
+	defer rows.Close()
+
+	return scanOrderRows(rows)
+}
+
+// FindRecentOrders returns paginated orders across all symbols, ordered by created_at descending.
+func (r *orderRepository) FindRecentOrders(ctx context.Context, limit, offset int) ([]domain.Order, error) {
+	const query = `
+		SELECT id, exchange, COALESCE(external_order_id, ''), decision_id, symbol, side,
+		       quantity::text, COALESCE(price::text, '0'), filled_quantity::text,
+		       COALESCE(filled_price::text, '0'), fee::text, COALESCE(fee_asset, ''),
+		       status, raw_response, created_at, updated_at
+		FROM orders
+		ORDER BY created_at DESC
+		LIMIT $1 OFFSET $2`
+
+	rows, err := r.pool.Query(ctx, query, limit, offset)
+	if err != nil {
+		return nil, fmt.Errorf("query recent orders limit %d offset %d: %w", limit, offset, err)
 	}
 	defer rows.Close()
 
