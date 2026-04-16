@@ -27,7 +27,29 @@ services:
       timeout: 5s
       retries: 5
 
+  gold-agent:
+    build:
+      context: ./gold-agent
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file: .env
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/api/v1/metrics || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+  # Legacy Go backend — not started by default.
+  # To run: docker compose --profile legacy up backend
   backend:
+    profiles: ["legacy"]
     build:
       context: ./gold-backend
       dockerfile: Dockerfile
