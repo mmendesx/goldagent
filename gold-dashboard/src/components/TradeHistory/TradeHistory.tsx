@@ -36,7 +36,7 @@ export function TradeHistory() {
       .fetchClosedPositions(PAGE_SIZE, currentPage * PAGE_SIZE)
       .then((response) => {
         if (isCancelled) return;
-        setPositions(response.items);
+        setPositions(response.items ?? []);
         setHasMore(response.hasMore);
         dispatch({ type: "success" });
       })

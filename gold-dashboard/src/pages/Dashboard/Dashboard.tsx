@@ -29,14 +29,14 @@ export function Dashboard() {
   useEffect(() => {
     restClient
       .fetchOpenPositions()
-      .then(setOpenPositions)
+      .then((positions) => setOpenPositions(positions ?? []))
       .catch((error) => console.warn("Failed to fetch open positions", error));
   }, [setOpenPositions]);
 
   useEffect(() => {
     restClient
       .fetchClosedPositions()
-      .then((res) => setClosedPositions(res.items))
+      .then((res) => setClosedPositions(res.items ?? []))
       .catch((error) => console.warn("Failed to fetch closed positions", error));
   }, [setClosedPositions]);
 

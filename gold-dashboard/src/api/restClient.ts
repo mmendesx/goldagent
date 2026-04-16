@@ -5,6 +5,7 @@ import type {
   Decision,
   PortfolioMetrics,
   PaginatedResponse,
+  ExchangeBalances,
 } from "../types";
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080";
@@ -88,6 +89,10 @@ export const restClient = {
     const params: Record<string, string | number> = { limit, offset };
     if (symbol) params.symbol = symbol;
     return request("/api/v1/decisions", params);
+  },
+
+  async fetchExchangeBalances(): Promise<ExchangeBalances> {
+    return request("/api/v1/exchange/balances");
   },
 };
 

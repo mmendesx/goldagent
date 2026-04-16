@@ -100,3 +100,13 @@ export type WebSocketMessage =
   | { type: "trade_executed"; payload: Position }
   | { type: "metric_update"; payload: PortfolioMetrics }
   | { type: "decision_made"; payload: Decision };
+
+export interface ExchangeBalance {
+  balance: string;
+  status: "ok" | "not_configured" | "error";
+}
+
+export interface ExchangeBalances {
+  binance: ExchangeBalance;
+  polymarket: ExchangeBalance;
+}

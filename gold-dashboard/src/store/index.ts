@@ -8,6 +8,7 @@ import type {
   Decision,
   TradingSymbol,
   ChartInterval,
+  ExchangeBalances,
 } from "../types";
 
 interface OpenPositionWithLive extends Position {
@@ -53,6 +54,10 @@ interface DashboardState {
   // Portfolio metrics (live)
   metrics: PortfolioMetrics | null;
   setMetrics: (metrics: PortfolioMetrics) => void;
+
+  // Exchange balances (polled)
+  exchangeBalances: ExchangeBalances | null;
+  setExchangeBalances: (balances: ExchangeBalances) => void;
 }
 
 export const candleKey = (symbol: string, interval: string): string => `${symbol}:${interval}`;
@@ -124,4 +129,7 @@ export const useDashboardStore = create<DashboardState>((set) => ({
 
   metrics: null,
   setMetrics: (metrics) => set({ metrics }),
+
+  exchangeBalances: null,
+  setExchangeBalances: (balances) => set({ exchangeBalances: balances }),
 }));

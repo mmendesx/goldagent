@@ -18,7 +18,7 @@ export function OpenPositions() {
       try {
         const positions = await restClient.fetchOpenPositions();
         if (!isCancelled) {
-          setOpenPositions(positions);
+          setOpenPositions(positions ?? []);
         }
       } catch (error) {
         console.warn("Failed to refresh open positions", error);

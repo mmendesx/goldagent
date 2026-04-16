@@ -15,7 +15,10 @@ import { useDashboardStore, candleKey, candleToChartCandle } from "../../store";
 import { restClient } from "../../api";
 import { SymbolSelector } from "../SymbolSelector/SymbolSelector";
 import { IntervalButtons } from "../IntervalButtons/IntervalButtons";
+import type { ChartCandle } from "../../types";
 import "./PriceChart.css";
+
+const EMPTY_CANDLES: ChartCandle[] = [];
 
 type FetchState = { isLoading: boolean; errorMessage: string | null };
 type FetchAction =
@@ -58,7 +61,7 @@ export function PriceChart() {
   const closedPositions = useDashboardStore((state) => state.closedPositions);
 
   const key = candleKey(selectedSymbol, selectedInterval);
-  const candles = useDashboardStore((state) => state.candlesByKey[key] ?? []);
+  const candles = useDashboardStore((state) => state.candlesByKey[key]) ?? EMPTY_CANDLES;
 
   // Initialize chart once — empty deps so this runs only on mount
   useEffect(() => {

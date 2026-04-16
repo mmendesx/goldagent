@@ -38,7 +38,7 @@ export function DecisionLog() {
       .fetchDecisions(symbolParam, PAGE_SIZE, 0)
       .then((response) => {
         if (isCancelled) return;
-        setDecisions(response.items);
+        setDecisions(response.items ?? []);
         dispatch({ type: "success" });
       })
       .catch((error: unknown) => {
