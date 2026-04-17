@@ -34,6 +34,31 @@ export class NetworkError extends Error {
   }
 }
 
+const inFlight = new Map<
+  string,
+  { controller: AbortController; promise: Promise<unknown> }
+>();
+
+function requestKey(
+  path: string,
+  params?: Record<string, string | number>,
+): string {
+  if (!params) return path;
+  const sorted = Object.keys(params)
+    .sort()
+    .map((k) => `${k}=${params[k]}`)
+    .join("&");
+  return `${path}?${sorted}`;
+}
+
+export function abortRequest(key: string): void {
+  const entry = inFlight.get(key);
+  if (entry) {
+    entry.controller.abort();
+    inFlight.delete(key);
+  }
+}
+
 async function withRetry<T>(
   fn: () => Promise<T>,
   {
@@ -63,8 +88,14 @@ async function withRetry<T>(
 async function request<T>(
   path: string,
   params?: Record<string, string | number>,
-  options?: { signal?: AbortSignal; timeoutMs?: number },
+  options?: { signal?: AbortSignal; timeoutMs?: number; dedupKey?: string },
 ): Promise<T> {
+  const dedupKey = options?.dedupKey;
+
+  if (dedupKey && inFlight.has(dedupKey)) {
+    return inFlight.get(dedupKey)!.promise as Promise<T>;
+  }
+
   const url = new URL(`${BASE_URL}${path}`);
   if (params) {
     for (const [key, value] of Object.entries(params)) {
@@ -90,28 +121,40 @@ async function request<T>(
     options?.timeoutMs ?? 10_000,
   );
 
-  let response: Response;
-  try {
-    response = await fetch(url.toString(), { signal: controller.signal });
-  } catch (error) {
-    clearTimeout(timeoutId);
-    if (
-      controller.signal.aborted ||
-      (error instanceof DOMException && error.name === "AbortError")
-    ) {
-      throw new TimeoutError(url.toString());
+  const fetchPromise: Promise<T> = (async () => {
+    let response: Response;
+    try {
+      response = await fetch(url.toString(), { signal: controller.signal });
+    } catch (error) {
+      clearTimeout(timeoutId);
+      if (
+        controller.signal.aborted ||
+        (error instanceof DOMException && error.name === "AbortError")
+      ) {
+        throw new TimeoutError(url.toString());
+      }
+      throw new NetworkError(
+        error instanceof Error ? error.message : String(error),
+      );
     }
-    throw new NetworkError(
-      error instanceof Error ? error.message : String(error),
-    );
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      throw new HttpError(response.status, await response.text());
+    }
+    return (await response.json()) as T;
+  })().finally(() => {
+    if (dedupKey) {
+      inFlight.delete(dedupKey);
+    }
+  });
+
+  if (dedupKey) {
+    inFlight.set(dedupKey, { controller, promise: fetchPromise });
   }
 
-  clearTimeout(timeoutId);
-
-  if (!response.ok) {
-    throw new HttpError(response.status, await response.text());
-  }
-  return (await response.json()) as T;
+  return fetchPromise;
 }
 
 export interface CandleQueryParams {
@@ -135,21 +178,29 @@ export const restClient = {
     if (params.to !== undefined) queryParams.to = params.to;
     if (params.limit !== undefined) queryParams.limit = params.limit;
     if (params.offset !== undefined) queryParams.offset = params.offset;
-    return withRetry(() => request("/api/v1/candles", queryParams));
+    const key = requestKey("/api/v1/candles", queryParams);
+    return withRetry(() =>
+      request("/api/v1/candles", queryParams, { dedupKey: key }),
+    );
   },
 
   fetchOpenPositions(): Promise<
     (Position & { currentPrice: string; unrealizedPnl: string })[]
   > {
-    return withRetry(() => request("/api/v1/positions"));
+    const key = requestKey("/api/v1/positions");
+    return withRetry(() =>
+      request("/api/v1/positions", undefined, { dedupKey: key }),
+    );
   },
 
   fetchClosedPositions(
     limit = 100,
     offset = 0,
   ): Promise<PaginatedResponse<Position>> {
+    const queryParams = { limit, offset };
+    const key = requestKey("/api/v1/positions/history", queryParams);
     return withRetry(() =>
-      request("/api/v1/positions/history", { limit, offset }),
+      request("/api/v1/positions/history", queryParams, { dedupKey: key }),
     );
   },
 
@@ -160,11 +211,17 @@ export const restClient = {
   ): Promise<PaginatedResponse<TradeRecord>> {
     const params: Record<string, string | number> = { limit, offset };
     if (symbol) params.symbol = symbol;
-    return withRetry(() => request("/api/v1/trades", params));
+    const key = requestKey("/api/v1/trades", params);
+    return withRetry(() =>
+      request("/api/v1/trades", params, { dedupKey: key }),
+    );
   },
 
   fetchMetrics(): Promise<PortfolioMetrics> {
-    return withRetry(() => request("/api/v1/metrics"));
+    const key = requestKey("/api/v1/metrics");
+    return withRetry(() =>
+      request("/api/v1/metrics", undefined, { dedupKey: key }),
+    );
   },
 
   fetchDecisions(
@@ -174,10 +231,16 @@ export const restClient = {
   ): Promise<PaginatedResponse<Decision>> {
     const params: Record<string, string | number> = { limit, offset };
     if (symbol) params.symbol = symbol;
-    return withRetry(() => request("/api/v1/decisions", params));
+    const key = requestKey("/api/v1/decisions", params);
+    return withRetry(() =>
+      request("/api/v1/decisions", params, { dedupKey: key }),
+    );
   },
 
   fetchExchangeBalances(): Promise<ExchangeBalances> {
-    return withRetry(() => request("/api/v1/exchange/balances"));
+    const key = requestKey("/api/v1/exchange/balances");
+    return withRetry(() =>
+      request("/api/v1/exchange/balances", undefined, { dedupKey: key }),
+    );
   },
 };

@@ -5,6 +5,7 @@ import { useDashboardStore } from "../../store";
 import { restClient } from "../../api";
 import type { ConnectionState } from "../../api";
 import { MetricsBar } from "../../components/MetricsBar";
+import { ErrorBoundary } from "../../components/ErrorBoundary";
 import { BinanceView } from "./BinanceView";
 import { PolymarketView } from "./PolymarketView";
 import "./Dashboard.css";
@@ -41,7 +42,9 @@ export function Dashboard() {
   return (
     <div className="dashboard">
       <header className="dashboard-metrics">
-        <MetricsBar />
+        <ErrorBoundary>
+          <MetricsBar />
+        </ErrorBoundary>
         <ConnectionBadge state={connectionState} />
       </header>
 
