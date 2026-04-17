@@ -170,14 +170,11 @@ docker compose up -d postgres redis
 
 **4. Run database migrations**
 
-The schema is managed via the SQL migration files in the original repo history. Apply them manually once against your Postgres instance:
-
 ```bash
-# Example using psql — adapt the connection string to your .env
-psql postgres://gold:gold@localhost:5432/gold < /path/to/migrations.sql
+psql postgres://gold:gold@localhost:5432/gold < migrations/schema.sql
 ```
 
-Or start the full stack with Docker Compose, which brings up a fresh Postgres with the correct default credentials; then connect and apply any schema you need.
+The schema is idempotent — safe to run multiple times.
 
 **5. Install Python dependencies**
 ```bash
