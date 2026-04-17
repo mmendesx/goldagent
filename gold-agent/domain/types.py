@@ -1,8 +1,10 @@
 from datetime import datetime
 from enum import Enum
-from typing import Optional
+from typing import Generic, Optional, TypeVar
 
 from pydantic import BaseModel, ConfigDict
+
+T = TypeVar("T")
 
 
 # ---------------------------------------------------------------------------
@@ -19,6 +21,28 @@ _CAMEL_CONFIG = ConfigDict(
     populate_by_name=True,
     alias_generator=_to_camel,
 )
+
+
+# ---------------------------------------------------------------------------
+# Pagination envelope
+# ---------------------------------------------------------------------------
+
+class Paginated(BaseModel, Generic[T]):
+    """Generic paginated response envelope.
+
+    Serializes to camelCase via alias_generator. `has_more` becomes `hasMore`.
+    `count` is the running total of items seen (offset + len(items)), not the
+    total records in the table. `has_more` is conservative: True when we
+    returned exactly `limit` items, meaning more may exist.
+    """
+
+    model_config = _CAMEL_CONFIG
+
+    items: list[T]
+    limit: int
+    offset: int
+    count: int
+    has_more: bool
 
 
 # ---------------------------------------------------------------------------

@@ -25,8 +25,8 @@ from typing import Optional
 
 import asyncpg
 
-from gold_agent.config import settings
-from gold_agent.domain.types import (
+from config import settings
+from domain.types import (
     Candle,
     Decision,
     Indicator,
@@ -253,8 +253,17 @@ async def save_candle(candle: Candle) -> None:
     )
 
 
-async def fetch_candles(symbol: str, interval: str, limit: int = 200) -> list[Candle]:
-    """Return the last `limit` candles for a symbol+interval, ordered ASC by open_time."""
+async def fetch_candles(
+    symbol: str,
+    interval: str,
+    limit: int = 200,
+    offset: int = 0,
+) -> list[Candle]:
+    """Return `limit` candles for a symbol+interval, ordered ASC by open_time.
+
+    Offset is applied inside the DESC subquery so offset=0 returns the most
+    recent window and offset=N skips N records from the most-recent end.
+    """
     query = """
         SELECT id, symbol, interval, open_time, close_time,
                open_price, high_price, low_price, close_price,
@@ -267,11 +276,12 @@ async def fetch_candles(symbol: str, interval: str, limit: int = 200) -> list[Ca
             WHERE symbol = $1 AND interval = $2
             ORDER BY open_time DESC
             LIMIT $3
+            OFFSET $4
         ) sub
         ORDER BY open_time ASC
     """
     pool = get_pool()
-    rows = await pool.fetch(query, symbol, interval, limit)
+    rows = await pool.fetch(query, symbol, interval, limit, offset)
     return [_record_to_candle(r) for r in rows]
 
 
@@ -402,8 +412,13 @@ async def save_decision(decision: Decision) -> int:
     return decision_id
 
 
-async def fetch_decisions(symbol: Optional[str] = None, limit: int = 50) -> list[Decision]:
+async def fetch_decisions(
+    symbol: Optional[str] = None,
+    limit: int = 50,
+    offset: int = 0,
+) -> list[Decision]:
     """Fetch recent decisions ordered by created_at DESC, optionally filtered by symbol."""
+    pool = get_pool()
     if symbol is not None:
         query = """
             SELECT id, symbol, action, confidence, execution_status,
@@ -412,9 +427,9 @@ async def fetch_decisions(symbol: Optional[str] = None, limit: int = 50) -> list
             WHERE symbol = $1
             ORDER BY created_at DESC
             LIMIT $2
+            OFFSET $3
         """
-        pool = get_pool()
-        rows = await pool.fetch(query, symbol, limit)
+        rows = await pool.fetch(query, symbol, limit, offset)
     else:
         query = """
             SELECT id, symbol, action, confidence, execution_status,
@@ -422,9 +437,9 @@ async def fetch_decisions(symbol: Optional[str] = None, limit: int = 50) -> list
             FROM decisions
             ORDER BY created_at DESC
             LIMIT $1
+            OFFSET $2
         """
-        pool = get_pool()
-        rows = await pool.fetch(query, limit)
+        rows = await pool.fetch(query, limit, offset)
     return [_record_to_decision(r) for r in rows]
 
 
@@ -525,6 +540,7 @@ async def fetch_positions(
     symbol: Optional[str] = None,
     status: Optional[str] = None,
     limit: int = 50,
+    offset: int = 0,
 ) -> list[Position]:
     """Fetch positions with optional symbol and status filters."""
     pool = get_pool()
@@ -540,6 +556,9 @@ async def fetch_positions(
 
     where_clause = ("WHERE " + " AND ".join(conditions)) if conditions else ""
     args.append(limit)
+    limit_placeholder = f"${len(args)}"
+    args.append(offset)
+    offset_placeholder = f"${len(args)}"
 
     query = f"""
         SELECT id, symbol, side, entry_price, exit_price, quantity,
@@ -550,7 +569,8 @@ async def fetch_positions(
         FROM positions
         {where_clause}
         ORDER BY opened_at DESC
-        LIMIT ${len(args)}
+        LIMIT {limit_placeholder}
+        OFFSET {offset_placeholder}
     """
     rows = await pool.fetch(query, *args)
     return [_record_to_position(r) for r in rows]

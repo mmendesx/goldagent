@@ -12,10 +12,10 @@ from typing import Optional
 
 from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
 
-from ..domain.types import ExchangeBalance, ExchangeBalanceStatus, ExchangeBalances, PortfolioMetrics
-from ..storage import postgres
-from ..exchange.binance_rest import BinanceRestClient
-from ..exchange.polymarket_rest import PolymarketRestClient
+from domain.types import ExchangeBalance, ExchangeBalanceStatus, ExchangeBalances, Paginated, PortfolioMetrics
+from storage import postgres
+from exchange.binance_rest import BinanceRestClient
+from exchange.polymarket_rest import PolymarketRestClient
 from .websocket_hub import WebSocketHub
 
 logger = logging.getLogger(__name__)
@@ -60,11 +60,19 @@ router = APIRouter()
 async def get_candles(
     symbol: str = Query("BTCUSDT"),
     interval: str = Query("5m"),
-    limit: int = Query(100, ge=1, le=1000),
+    limit: int = Query(50, ge=1, le=500),
+    offset: int = Query(0, ge=0),
 ):
-    """Return the last `limit` candles for a symbol+interval, ordered ASC by openTime."""
-    candles = await postgres.fetch_candles(symbol, interval, limit=limit)
-    return [c.model_dump(by_alias=True) for c in candles]
+    """Return a paginated window of candles for a symbol+interval, ordered ASC by openTime."""
+    candles = await postgres.fetch_candles(symbol, interval, limit=limit, offset=offset)
+    page: Paginated = Paginated(
+        items=candles,
+        limit=limit,
+        offset=offset,
+        count=offset + len(candles),
+        has_more=len(candles) == limit,
+    )
+    return page.model_dump(by_alias=True)
 
 
 @router.get("/api/v1/positions")
@@ -81,20 +89,36 @@ async def get_positions(
 async def get_trades(
     symbol: Optional[str] = Query(None),
     limit: int = Query(50, ge=1, le=500),
+    offset: int = Query(0, ge=0),
 ):
-    """Return closed trade history. Closed positions serve as trade records."""
-    positions = await postgres.fetch_positions(symbol=symbol, status="closed", limit=limit)
-    return [p.model_dump(by_alias=True) for p in positions]
+    """Return a paginated window of closed trade history. Closed positions serve as trade records."""
+    positions = await postgres.fetch_positions(symbol=symbol, status="closed", limit=limit, offset=offset)
+    page: Paginated = Paginated(
+        items=positions,
+        limit=limit,
+        offset=offset,
+        count=offset + len(positions),
+        has_more=len(positions) == limit,
+    )
+    return page.model_dump(by_alias=True)
 
 
 @router.get("/api/v1/decisions")
 async def get_decisions(
     symbol: Optional[str] = Query(None),
     limit: int = Query(50, ge=1, le=500),
+    offset: int = Query(0, ge=0),
 ):
-    """Return decision log ordered by createdAt DESC."""
-    decisions = await postgres.fetch_decisions(symbol=symbol, limit=limit)
-    return [d.model_dump(by_alias=True) for d in decisions]
+    """Return a paginated window of the decision log ordered by createdAt DESC."""
+    decisions = await postgres.fetch_decisions(symbol=symbol, limit=limit, offset=offset)
+    page: Paginated = Paginated(
+        items=decisions,
+        limit=limit,
+        offset=offset,
+        count=offset + len(decisions),
+        has_more=len(decisions) == limit,
+    )
+    return page.model_dump(by_alias=True)
 
 
 @router.get("/api/v1/metrics")
