@@ -157,6 +157,10 @@ export function PriceChart() {
   useEffect(() => {
     let isCancelled = false;
     dispatch({ type: "start" });
+    // Clear stale data immediately so old candles don't persist while loading
+    seededKeyRef.current = null;
+    candlestickSeriesRef.current?.setData([]);
+    volumeSeriesRef.current?.setData([]);
 
     restClient
       .fetchCandles({

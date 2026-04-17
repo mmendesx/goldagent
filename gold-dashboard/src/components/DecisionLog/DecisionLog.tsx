@@ -150,11 +150,12 @@ export function DecisionLog() {
 function DecisionRow({ decision }: { decision: Decision }) {
   const actionClassName = getActionClassName(decision.action);
   const statusClassName = getStatusClassName(decision.executionStatus);
-  const compositeScoreNumeric = parseFloat(decision.compositeScore);
+  const compositeScoreNumeric =
+    decision.compositeScore != null ? parseFloat(decision.compositeScore) : null;
   const scoreClassName =
-    compositeScoreNumeric > 0
+    compositeScoreNumeric !== null && compositeScoreNumeric > 0
       ? "score-positive"
-      : compositeScoreNumeric < 0
+      : compositeScoreNumeric !== null && compositeScoreNumeric < 0
       ? "score-negative"
       : "score-neutral";
 
@@ -172,7 +173,9 @@ function DecisionRow({ decision }: { decision: Decision }) {
         <ConfidenceBar confidence={decision.confidence} />
       </td>
       <td className={`numeric-cell ${scoreClassName}`}>
-        {compositeScoreNumeric >= 0 ? "+" : ""}{compositeScoreNumeric.toFixed(1)}
+        {compositeScoreNumeric !== null && !Number.isNaN(compositeScoreNumeric)
+          ? `${compositeScoreNumeric >= 0 ? "+" : ""}${compositeScoreNumeric.toFixed(1)}`
+          : "—"}
       </td>
       <td>
         <span className={`status-badge ${statusClassName}`}>{formatStatus(decision.executionStatus)}</span>

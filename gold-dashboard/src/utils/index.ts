@@ -24,7 +24,8 @@ export function formatCompact(value: string | number): string {
   }).format(numeric);
 }
 
-export function formatPrice(value: string | number): string {
+export function formatPrice(value: string | number | null | undefined): string {
+  if (value === null || value === undefined) return "—";
   const numeric = typeof value === "string" ? parseFloat(value) : value;
   if (Number.isNaN(numeric)) return "—";
   if (numeric >= 1000)
