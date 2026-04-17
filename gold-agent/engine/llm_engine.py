@@ -15,10 +15,10 @@ from datetime import datetime, timezone
 from openai import OpenAI
 from pydantic import ValidationError
 
-from gold_agent.config import settings
-from gold_agent.domain.types import Decision, DecisionAction, LLMDecisionResponse
-from gold_agent.engine.prompts import build_messages
-from gold_agent.storage import postgres
+from config import settings
+from domain.types import Decision, DecisionAction, LLMDecisionResponse
+from engine.prompts import build_messages
+from storage import postgres
 
 logger = logging.getLogger(__name__)
 

@@ -10,9 +10,9 @@ import asyncio
 import logging
 from datetime import datetime
 
-from gold_agent.config import settings
-from gold_agent.domain.types import Candle
-from gold_agent.storage import postgres
+from config import settings
+from domain.types import Candle
+from storage import postgres
 
 logger = logging.getLogger(__name__)
 

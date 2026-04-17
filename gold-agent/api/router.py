@@ -12,8 +12,8 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .handlers import init_handlers, router
 from .websocket_hub import WebSocketHub
-from ..exchange.binance_rest import BinanceRestClient
-from ..exchange.polymarket_rest import PolymarketRestClient
+from exchange.binance_rest import BinanceRestClient
+from exchange.polymarket_rest import PolymarketRestClient
 
 logger = logging.getLogger(__name__)
 

@@ -5,8 +5,8 @@ from datetime import datetime
 import pandas as pd
 import pandas_ta as ta
 
-from gold_agent.domain.types import Candle, Indicator
-from gold_agent.storage import postgres
+from domain.types import Candle, Indicator
+from storage import postgres
 
 logger = logging.getLogger(__name__)
 
