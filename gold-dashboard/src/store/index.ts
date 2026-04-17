@@ -93,6 +93,10 @@ export interface DashboardState {
   // Chart indicator settings — persisted per chart key
   chartIndicators: Record<string, ChartIndicatorSettings>;
   setChartIndicators: (key: string, settings: Partial<ChartIndicatorSettings>) => void;
+
+  // Theme
+  theme: "light" | "dark" | "system";
+  setTheme: (t: "light" | "dark" | "system") => void;
 }
 
 export const candleKey = (symbol: string, interval: string): string => `${symbol}:${interval}`;
@@ -202,10 +206,13 @@ export const useDashboardStore = create<DashboardState>()(
             [key]: { ...(state.chartIndicators[key] ?? DEFAULT_INDICATOR_SETTINGS), ...settings },
           },
         })),
+
+      theme: "dark",
+      setTheme: (t) => set({ theme: t }),
     }),
     {
       name: "gold-dashboard-indicators",
-      partialize: (state) => ({ chartIndicators: state.chartIndicators }),
+      partialize: (state) => ({ chartIndicators: state.chartIndicators, theme: state.theme }),
     }
   )
 );
