@@ -105,3 +105,21 @@ body {
 .view-tabs {
   flex-wrap: wrap;
 }
+
+/* High-contrast mode — boost text/border contrast for prefers-contrast: more */
+@media (prefers-contrast: more) {
+  :root,
+  [data-theme="dark"],
+  [data-theme="light"] {
+    --color-text-primary: #ffffff;
+    --color-text-secondary: #e0e0e0;
+    --color-border: #ffffff;
+    --color-focus-ring: #ffffff;
+  }
+  [data-theme="light"] {
+    --color-text-primary: #000000;
+    --color-text-secondary: #1a1a1a;
+    --color-border: #000000;
+    --color-focus-ring: #000000;
+  }
+}
