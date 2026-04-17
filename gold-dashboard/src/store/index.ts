@@ -16,16 +16,35 @@ interface OpenPositionWithLive extends Position {
   unrealizedPnl: string;
 }
 
+interface ChartSelectionEntry {
+  symbol: TradingSymbol;
+  interval: ChartInterval;
+}
+
 interface DashboardState {
   // Connection state
   connectionState: "connecting" | "open" | "closed" | "reconnecting";
   setConnectionState: (state: DashboardState["connectionState"]) => void;
 
-  // Selected symbol/interval (chart context)
+  // Selected symbol/interval (chart context) — legacy, will be migrated in ICT-2
   selectedSymbol: TradingSymbol;
   selectedInterval: ChartInterval;
   setSelectedSymbol: (symbol: TradingSymbol) => void;
   setSelectedInterval: (interval: ChartInterval) => void;
+
+  // Per-exchange chart selection
+  chartSelection: {
+    binance: ChartSelectionEntry;
+    polymarket: ChartSelectionEntry;
+  };
+  setChartSelection: (
+    exchange: "binance" | "polymarket",
+    partial: Partial<ChartSelectionEntry>
+  ) => void;
+
+  // Last price per symbol
+  lastPrice: Record<string, { price: number; time: number }>;
+  setLastPrice: (symbol: string, price: number, time: number) => void;
 
   // Candle data — keyed by `${symbol}:${interval}` so multiple symbols can be cached
   candlesByKey: Record<string, ChartCandle[]>;
@@ -81,6 +100,24 @@ export const useDashboardStore = create<DashboardState>((set) => ({
   selectedInterval: "5m",
   setSelectedSymbol: (symbol) => set({ selectedSymbol: symbol }),
   setSelectedInterval: (interval) => set({ selectedInterval: interval }),
+
+  chartSelection: {
+    binance: { symbol: "BTCUSDT", interval: "5m" },
+    polymarket: { symbol: "BTCUSDT", interval: "5m" },
+  },
+  setChartSelection: (exchange, partial) =>
+    set((state) => ({
+      chartSelection: {
+        ...state.chartSelection,
+        [exchange]: { ...state.chartSelection[exchange], ...partial },
+      },
+    })),
+
+  lastPrice: {},
+  setLastPrice: (symbol, price, time) =>
+    set((state) => ({
+      lastPrice: { ...state.lastPrice, [symbol]: { price, time } },
+    })),
 
   candlesByKey: {},
   setCandlesForKey: (key, candles) =>
