@@ -11,6 +11,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@radix-ui/react-tabs": "^1.1.13",
     "@tailwindcss/vite": "^4.2.2",
     "lightweight-charts": "^5.1.0",
     "motion": "^12.38.0",

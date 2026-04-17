@@ -20,6 +20,8 @@ coverage.out
 
 # Go vendor directory (if used)
 vendor/
+# Track frontend vendored source components
+!gold-dashboard/src/vendor/
 
 # Frontend
 gold-dashboard/node_modules/
