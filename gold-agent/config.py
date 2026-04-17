@@ -43,7 +43,7 @@ class Settings(BaseSettings):
 
     # LLM
     openai_api_key: str = ""
-    gold_llm_model: str = "gpt-4.1-nano"
+    gold_llm_model: str = "gpt-5.4-nano"
     gold_llm_context_candles: int = 50
 
     @field_validator("gold_symbols", mode="before")
