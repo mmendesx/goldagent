@@ -1,78 +1,35 @@
-import { useEffect, useReducer, useState } from "react";
+import { useEffect, useState } from "react";
+import { useDashboardStore } from "../../store";
 import { restClient } from "../../api";
-import { AsyncBoundary } from "../AsyncBoundary";
-import type { AsyncState } from "../../hooks";
+import { useListFetch } from "../../hooks/useListFetch";
 import type { Decision, TradingSymbol } from "../../types";
 import "./DecisionLog.css";
 
-const PAGE_LIMIT = 50;
-const TRUNCATE_LENGTH = 240;
+const PAGE_SIZE = 100;
 const AVAILABLE_SYMBOLS: (TradingSymbol | "ALL")[] = ["ALL", "BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT"];
 
-type FetchState = {
-  asyncState: AsyncState;
-  errorMessage: string | null;
-};
-
-type FetchAction =
-  | { type: "start" }
-  | { type: "success"; hasItems: boolean }
-  | { type: "error"; message: string };
-
-function fetchReducer(_state: FetchState, action: FetchAction): FetchState {
-  switch (action.type) {
-    case "start":
-      return { asyncState: "loading", errorMessage: null };
-    case "success":
-      return { asyncState: action.hasItems ? "ready" : "empty", errorMessage: null };
-    case "error":
-      return { asyncState: "error", errorMessage: action.message };
-  }
-}
-
 export function DecisionLog() {
-  const [decisions, setDecisions] = useState<Decision[]>([]);
-  const [hasMore, setHasMore] = useState(false);
-  const [offset, setOffset] = useState(0);
+  const decisions = useDashboardStore((state) => state.decisions);
+  const setDecisions = useDashboardStore((state) => state.setDecisions);
   const [symbolFilter, setSymbolFilter] = useState<TradingSymbol | "ALL">("ALL");
-  const [{ asyncState, errorMessage }, dispatch] = useReducer(fetchReducer, {
-    asyncState: "loading",
-    errorMessage: null,
-  });
 
+  const symbolParam = symbolFilter === "ALL" ? "" : symbolFilter;
+  const fetchKey = `decisions-${symbolParam}`;
+  const { data, error, loading, refetch } = useListFetch(
+    fetchKey,
+    () => restClient.fetchDecisions(symbolParam || undefined, PAGE_SIZE, 0),
+    [symbolFilter],
+  );
+
+  // Sync REST results into the store so live WS decisions augment the initial load
   useEffect(() => {
-    let cancelled = false;
-    dispatch({ type: "start" });
+    if (data?.items) setDecisions(data.items);
+  }, [data, setDecisions]);
 
-    const symbol = symbolFilter === "ALL" ? undefined : symbolFilter;
-
-    restClient
-      .fetchDecisions(symbol, PAGE_LIMIT, offset)
-      .then((response) => {
-        if (cancelled) return;
-        const items = response.items ?? [];
-        setDecisions(items);
-        setHasMore(response.hasMore);
-        dispatch({ type: "success", hasItems: items.length > 0 });
-      })
-      .catch((error: unknown) => {
-        if (cancelled) return;
-        const message = error instanceof Error ? error.message : "Failed to load decisions";
-        dispatch({ type: "error", message });
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [offset, symbolFilter]);
-
-  function handleSymbolChange(value: TradingSymbol | "ALL") {
-    setSymbolFilter(value);
-    setOffset(0);
-  }
-
-  const isLoading = asyncState === "loading";
-  const currentPage = Math.floor(offset / PAGE_LIMIT) + 1;
+  // Filter live-updated decisions client-side by symbol
+  const filteredDecisions = symbolFilter === "ALL"
+    ? decisions
+    : decisions.filter((decision) => decision.symbol === symbolFilter);
 
   return (
     <div className="decision-log">
@@ -81,46 +38,20 @@ export function DecisionLog() {
           <span className="decision-log-filter-label">Symbol</span>
           <select
             value={symbolFilter}
-            onChange={(event) => handleSymbolChange(event.target.value as TradingSymbol | "ALL")}
+            onChange={(event) => setSymbolFilter(event.target.value as TradingSymbol | "ALL")}
             className="decision-log-select"
-            disabled={isLoading}
           >
             {AVAILABLE_SYMBOLS.map((symbol) => (
               <option key={symbol} value={symbol}>{symbol}</option>
             ))}
           </select>
         </label>
-
-        <div className="decision-log-pagination">
-          <button
-            type="button"
-            className="decision-log-page-button"
-            onClick={() => setOffset((prev) => Math.max(0, prev - PAGE_LIMIT))}
-            disabled={offset === 0 || isLoading}
-          >
-            ← Previous
-          </button>
-          <span className="decision-log-page-info">Page {currentPage}</span>
-          <button
-            type="button"
-            className="decision-log-page-button"
-            onClick={() => setOffset((prev) => prev + PAGE_LIMIT)}
-            disabled={!hasMore || isLoading}
-          >
-            Next →
-          </button>
+        <div className="decision-log-meta">
+          {filteredDecisions.length} decision{filteredDecisions.length === 1 ? "" : "s"}
         </div>
       </div>
 
-      <AsyncBoundary
-        state={asyncState}
-        onRetry={() => {
-          setOffset(0);
-          setSymbolFilter("ALL");
-        }}
-        emptyCopy="No decisions found. The engine logs every evaluation, including HOLDs."
-        errorMessage={errorMessage ?? "Failed to load decisions"}
-      >
+      {filteredDecisions.length > 0 && (
         <div className="decision-log-table-container">
           <table className="decision-log-table">
             <thead>
@@ -132,17 +63,33 @@ export function DecisionLog() {
                 <th>Score</th>
                 <th>Status</th>
                 <th>Reason</th>
-                <th>Reasoning</th>
               </tr>
             </thead>
             <tbody>
-              {decisions.map((decision) => (
+              {filteredDecisions.map((decision) => (
                 <DecisionRow key={decision.id} decision={decision} />
               ))}
             </tbody>
           </table>
         </div>
-      </AsyncBoundary>
+      )}
+
+      {error && (
+        <div className="decision-log-error" role="alert">
+          <span>{error}</span>
+          <button type="button" onClick={refetch} className="decision-log-retry">Retry</button>
+        </div>
+      )}
+
+      {!error && loading && filteredDecisions.length === 0 && (
+        <div className="decision-log-empty">Loading…</div>
+      )}
+
+      {!error && !loading && filteredDecisions.length === 0 && (
+        <div className="decision-log-empty">
+          No decisions yet. The engine logs every evaluation, including HOLDs.
+        </div>
+      )}
     </div>
   );
 }
@@ -150,14 +97,8 @@ export function DecisionLog() {
 function DecisionRow({ decision }: { decision: Decision }) {
   const actionClassName = getActionClassName(decision.action);
   const statusClassName = getStatusClassName(decision.executionStatus);
-  const compositeScoreNumeric =
-    decision.compositeScore != null ? parseFloat(decision.compositeScore) : null;
-  const scoreClassName =
-    compositeScoreNumeric !== null && compositeScoreNumeric > 0
-      ? "score-positive"
-      : compositeScoreNumeric !== null && compositeScoreNumeric < 0
-      ? "score-negative"
-      : "score-neutral";
+  const compositeScoreNumeric = parseFloat(decision.compositeScore);
+  const scoreClassName = compositeScoreNumeric > 0 ? "score-positive" : compositeScoreNumeric < 0 ? "score-negative" : "score-neutral";
 
   return (
     <tr>
@@ -165,51 +106,19 @@ function DecisionRow({ decision }: { decision: Decision }) {
       <td className="symbol-cell">{decision.symbol}</td>
       <td>
         <span className={`action-badge ${actionClassName}`}>{decision.action}</span>
-        {decision.isDryRun && (
-          <span className="dry-run-badge" title="Dry run — no real order placed">DRY</span>
-        )}
+        {decision.isDryRun && <span className="dry-run-badge" title="Dry run — no real order placed">DRY</span>}
       </td>
       <td className="numeric-cell">
         <ConfidenceBar confidence={decision.confidence} />
       </td>
       <td className={`numeric-cell ${scoreClassName}`}>
-        {compositeScoreNumeric !== null && !Number.isNaN(compositeScoreNumeric)
-          ? `${compositeScoreNumeric >= 0 ? "+" : ""}${compositeScoreNumeric.toFixed(1)}`
-          : "—"}
+        {compositeScoreNumeric >= 0 ? "+" : ""}{compositeScoreNumeric.toFixed(1)}
       </td>
       <td>
         <span className={`status-badge ${statusClassName}`}>{formatStatus(decision.executionStatus)}</span>
       </td>
       <td className="reason-cell">{decision.rejectionReason ?? "—"}</td>
-      <td className="reasoning-cell">
-        <ReasoningCell reasoning={decision.reasoning} />
-      </td>
     </tr>
-  );
-}
-
-function ReasoningCell({ reasoning }: { reasoning?: string | null }) {
-  const [expanded, setExpanded] = useState(false);
-
-  if (!reasoning) return <span className="muted">—</span>;
-
-  const isTruncated = reasoning.length > TRUNCATE_LENGTH;
-  const displayText =
-    !expanded && isTruncated ? reasoning.slice(0, TRUNCATE_LENGTH) + "…" : reasoning;
-
-  return (
-    <span className="reasoning-text">
-      {displayText}
-      {isTruncated && (
-        <button
-          type="button"
-          onClick={() => setExpanded((prev) => !prev)}
-          className="expand-toggle"
-        >
-          {expanded ? "Show less" : "Show more"}
-        </button>
-      )}
-    </span>
   );
 }
 

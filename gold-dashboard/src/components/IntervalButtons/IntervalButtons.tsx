@@ -1,25 +1,26 @@
-import { useDashboardStore } from "../../store";
 import type { ChartInterval } from "../../types";
 import "./IntervalButtons.css";
 
 const AVAILABLE_INTERVALS: ChartInterval[] = ["1m", "5m", "15m", "1h"];
 
-export function IntervalButtons() {
-  const selectedInterval = useDashboardStore((state) => state.selectedInterval);
-  const setSelectedInterval = useDashboardStore((state) => state.setSelectedInterval);
+interface IntervalButtonsProps {
+  interval: ChartInterval;
+  onIntervalChange: (interval: ChartInterval) => void;
+}
 
+export function IntervalButtons({ interval, onIntervalChange }: IntervalButtonsProps) {
   return (
     <div className="interval-buttons" role="radiogroup" aria-label="Chart interval">
-      {AVAILABLE_INTERVALS.map((interval) => (
+      {AVAILABLE_INTERVALS.map((iv) => (
         <button
-          key={interval}
+          key={iv}
           type="button"
           role="radio"
-          aria-checked={interval === selectedInterval}
-          className={interval === selectedInterval ? "interval-button active" : "interval-button"}
-          onClick={() => setSelectedInterval(interval)}
+          aria-checked={iv === interval}
+          className={iv === interval ? "interval-button active" : "interval-button"}
+          onClick={() => onIntervalChange(iv)}
         >
-          {interval}
+          {iv}
         </button>
       ))}
     </div>

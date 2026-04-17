@@ -23,6 +23,17 @@ export class WebSocketClient {
   }
 
   connect(): void {
+    if (this.reconnectTimer !== null) {
+      window.clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    if (
+      this.socket !== null &&
+      (this.socket.readyState === WebSocket.CONNECTING ||
+        this.socket.readyState === WebSocket.OPEN)
+    ) {
+      return;
+    }
     this.isExplicitlyClosed = false;
     this.openConnection();
   }
@@ -107,6 +118,10 @@ export class WebSocketClient {
 
   private scheduleReconnect(): void {
     this.setState("reconnecting");
+    if (this.reconnectTimer !== null) {
+      window.clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
     const delayMilliseconds = Math.min(1000 * 2 ** this.reconnectAttempt, 30000);
     this.reconnectAttempt += 1;
     for (const handler of this.reconnectAttemptHandlers) {

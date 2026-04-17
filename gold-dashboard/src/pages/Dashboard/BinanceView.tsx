@@ -3,19 +3,8 @@ import { PriceChart } from "../../components/PriceChart/PriceChart";
 import { OpenPositions } from "../../components/OpenPositions/OpenPositions";
 import { TradeHistory } from "../../components/TradeHistory";
 import { DecisionLog } from "../../components/DecisionLog/DecisionLog";
-import { LatestSignal } from "../../components/LatestSignal";
-import { useDashboardStore } from "../../store";
+import { ErrorBoundary } from "../../components/ErrorBoundary";
 import "./Dashboard.css";
-
-function ChartWithSignal() {
-  const latestDecision = useDashboardStore((state) => state.decisions[0] ?? null);
-  return (
-    <>
-      <PriceChart />
-      <LatestSignal decision={latestDecision} />
-    </>
-  );
-}
 
 export function BinanceView() {
   return (
@@ -49,10 +38,10 @@ export function BinanceView() {
 
       <main className="dashboard-content">
         <Routes>
-          <Route path="chart" element={<ChartWithSignal />} />
-          <Route path="positions" element={<OpenPositions />} />
-          <Route path="history" element={<TradeHistory />} />
-          <Route path="decisions" element={<DecisionLog />} />
+          <Route path="chart" element={<ErrorBoundary><PriceChart exchange="binance" /></ErrorBoundary>} />
+          <Route path="positions" element={<ErrorBoundary><OpenPositions /></ErrorBoundary>} />
+          <Route path="history" element={<ErrorBoundary><TradeHistory /></ErrorBoundary>} />
+          <Route path="decisions" element={<ErrorBoundary><DecisionLog /></ErrorBoundary>} />
           <Route path="*" element={<Navigate to="/binance/chart" replace />} />
         </Routes>
       </main>

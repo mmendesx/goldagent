@@ -6,6 +6,7 @@
   padding: 1rem 1.5rem;
   background: var(--color-surface-2);
   border-bottom: 1px solid var(--color-border);
+  overflow-x: auto;
 }
 
 .metric-item {

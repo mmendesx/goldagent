@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { persist } from "zustand/middleware";
 import type {
   Candle,
   ChartCandle,
@@ -11,28 +12,54 @@ import type {
   ExchangeBalances,
 } from "../types";
 
+export interface ChartIndicatorSettings {
+  ma: { enabled: boolean; periods: [number, number] };
+  vwap: { enabled: boolean };
+  volume: { enabled: boolean };
+}
+
+export const DEFAULT_INDICATOR_SETTINGS: ChartIndicatorSettings = {
+  ma: { enabled: true, periods: [20, 50] },
+  vwap: { enabled: false },
+  volume: { enabled: true },
+};
+
 interface OpenPositionWithLive extends Position {
   currentPrice: string;
   unrealizedPnl: string;
 }
 
-interface DashboardState {
+interface ChartSelectionEntry {
+  symbol: TradingSymbol;
+  interval: ChartInterval;
+}
+
+export interface DashboardState {
   // Connection state
   connectionState: "connecting" | "open" | "closed" | "reconnecting";
   setConnectionState: (state: DashboardState["connectionState"]) => void;
-  reconnectAttempts: number;
-  setReconnectAttempts: (count: number) => void;
 
-  // Selected symbol/interval (chart context)
-  selectedSymbol: TradingSymbol;
-  selectedInterval: ChartInterval;
-  setSelectedSymbol: (symbol: TradingSymbol) => void;
-  setSelectedInterval: (interval: ChartInterval) => void;
+  // Per-exchange chart selection
+  chartSelection: {
+    binance: ChartSelectionEntry;
+    polymarket: ChartSelectionEntry;
+  };
+  setChartSelection: (
+    exchange: "binance" | "polymarket",
+    partial: Partial<ChartSelectionEntry>
+  ) => void;
+
+  // Last price per symbol
+  lastPrice: Record<string, { price: number; time: number }>;
+  setLastPrice: (symbol: string, price: number, time: number) => void;
 
   // Candle data — keyed by `${symbol}:${interval}` so multiple symbols can be cached
   candlesByKey: Record<string, ChartCandle[]>;
   setCandlesForKey: (key: string, candles: ChartCandle[]) => void;
   appendOrUpdateCandle: (key: string, candle: ChartCandle) => void;
+  candleLoading: Record<string, boolean>;
+  setCandleLoading: (key: string, loading: boolean) => void;
+  clearCandles: (key: string) => void;
 
   // Open positions (with live data)
   openPositions: OpenPositionWithLive[];
@@ -61,9 +88,9 @@ interface DashboardState {
   exchangeBalances: ExchangeBalances | null;
   setExchangeBalances: (balances: ExchangeBalances) => void;
 
-  // Live ticker prices — keyed by symbol
-  tickersBySymbol: Record<string, { price: number; timestamp: string }>;
-  setTicker: (symbol: string, price: number, timestamp: string) => void;
+  // Chart indicator settings — persisted per chart key
+  chartIndicators: Record<string, ChartIndicatorSettings>;
+  setChartIndicators: (key: string, settings: Partial<ChartIndicatorSettings>) => void;
 }
 
 export const candleKey = (symbol: string, interval: string): string => `${symbol}:${interval}`;
@@ -79,71 +106,126 @@ export function candleToChartCandle(candle: Candle): ChartCandle {
   };
 }
 
-export const useDashboardStore = create<DashboardState>((set) => ({
-  connectionState: "closed",
-  setConnectionState: (state) => set({ connectionState: state }),
-  reconnectAttempts: 0,
-  setReconnectAttempts: (count) => set({ reconnectAttempts: count }),
+export const useDashboardStore = create<DashboardState>()(
+  persist(
+    (set) => ({
+      connectionState: "closed",
+      setConnectionState: (state) => set({ connectionState: state }),
 
-  selectedSymbol: "BTCUSDT",
-  selectedInterval: "5m",
-  setSelectedSymbol: (symbol) => set({ selectedSymbol: symbol }),
-  setSelectedInterval: (interval) => set({ selectedInterval: interval }),
+      chartSelection: {
+        binance: { symbol: "BTCUSDT", interval: "5m" },
+        polymarket: { symbol: "BTCUSDT", interval: "5m" },
+      },
+      setChartSelection: (exchange, partial) =>
+        set((state) => ({
+          chartSelection: {
+            ...state.chartSelection,
+            [exchange]: { ...state.chartSelection[exchange], ...partial },
+          },
+        })),
 
-  candlesByKey: {},
-  setCandlesForKey: (key, candles) =>
-    set((state) => ({ candlesByKey: { ...state.candlesByKey, [key]: candles } })),
-  appendOrUpdateCandle: (key, candle) =>
-    set((state) => {
-      const existing = state.candlesByKey[key] ?? [];
-      const lastIndex = existing.length - 1;
-      const last = existing[lastIndex];
-      let next: ChartCandle[];
-      if (last && last.time === candle.time) {
-        next = [...existing.slice(0, lastIndex), candle];
-      } else if (last && candle.time < last.time) {
-        return state;
-      } else {
-        next = [...existing, candle];
-      }
-      return { candlesByKey: { ...state.candlesByKey, [key]: next } };
+      lastPrice: {},
+      setLastPrice: (symbol, price, time) =>
+        set((state) => ({
+          lastPrice: { ...state.lastPrice, [symbol]: { price, time } },
+        })),
+
+      candlesByKey: {},
+      setCandlesForKey: (key, candles) =>
+        set((state) => ({ candlesByKey: { ...state.candlesByKey, [key]: candles } })),
+      candleLoading: {},
+      setCandleLoading: (key, loading) =>
+        set((state) => ({ candleLoading: { ...state.candleLoading, [key]: loading } })),
+      clearCandles: (key) =>
+        set((state) => {
+          const next = { ...state.candlesByKey };
+          delete next[key];
+          return { candlesByKey: next };
+        }),
+      appendOrUpdateCandle: (key, candle) =>
+        set((state) => {
+          const existing = state.candlesByKey[key] ?? [];
+          const lastIndex = existing.length - 1;
+          const last = existing[lastIndex];
+          let next: ChartCandle[];
+          if (last && last.time === candle.time) {
+            next = [...existing.slice(0, lastIndex), candle];
+          } else if (last && candle.time < last.time) {
+            return state;
+          } else {
+            next = [...existing, candle];
+          }
+          return { candlesByKey: { ...state.candlesByKey, [key]: next } };
+        }),
+
+      openPositions: [],
+      setOpenPositions: (positions) => set({ openPositions: positions }),
+      upsertOpenPosition: (position) =>
+        set((state) => {
+          const existingIndex = state.openPositions.findIndex((p) => p.id === position.id);
+          if (existingIndex === -1) return { openPositions: [...state.openPositions, position] };
+          const next = [...state.openPositions];
+          next[existingIndex] = position;
+          return { openPositions: next };
+        }),
+      removeOpenPosition: (positionId) =>
+        set((state) => ({
+          openPositions: state.openPositions.filter((p) => p.id !== positionId),
+        })),
+
+      closedPositions: [],
+      setClosedPositions: (positions) => set({ closedPositions: positions }),
+
+      trades: [],
+      setTrades: (trades) => set({ trades }),
+
+      decisions: [],
+      setDecisions: (decisions) => set({ decisions }),
+      prependDecision: (decision) =>
+        set((state) => ({ decisions: [decision, ...state.decisions].slice(0, 500) })),
+
+      metrics: null,
+      setMetrics: (metrics) => set({ metrics }),
+
+      exchangeBalances: null,
+      setExchangeBalances: (balances) => set({ exchangeBalances: balances }),
+
+      chartIndicators: {},
+      setChartIndicators: (key, settings) =>
+        set((state) => ({
+          chartIndicators: {
+            ...state.chartIndicators,
+            [key]: { ...(state.chartIndicators[key] ?? DEFAULT_INDICATOR_SETTINGS), ...settings },
+          },
+        })),
     }),
+    {
+      name: "gold-dashboard-indicators",
+      partialize: (state) => ({ chartIndicators: state.chartIndicators }),
+    }
+  )
+);
 
-  openPositions: [],
-  setOpenPositions: (positions) => set({ openPositions: positions }),
-  upsertOpenPosition: (position) =>
-    set((state) => {
-      const existingIndex = state.openPositions.findIndex((p) => p.id === position.id);
-      if (existingIndex === -1) return { openPositions: [...state.openPositions, position] };
-      const next = [...state.openPositions];
-      next[existingIndex] = position;
-      return { openPositions: next };
-    }),
-  removeOpenPosition: (positionId) =>
-    set((state) => ({
-      openPositions: state.openPositions.filter((p) => p.id !== positionId),
-    })),
+export function selectChartIndicators(key: string) {
+  return (state: DashboardState): ChartIndicatorSettings =>
+    state.chartIndicators[key] ?? DEFAULT_INDICATOR_SETTINGS;
+}
 
-  closedPositions: [],
-  setClosedPositions: (positions) => set({ closedPositions: positions }),
+export function selectOpenPositionsWithLivePnl(state: DashboardState) {
+  return state.openPositions.map((position) => {
+    const lastTick = state.lastPrice[position.symbol];
+    if (!lastTick) return position;
 
-  trades: [],
-  setTrades: (trades) => set({ trades }),
+    const lastPrice = lastTick.price;
+    const entryPrice = parseFloat(position.entryPrice);
+    const quantity = parseFloat(position.quantity);
+    const sideMultiplier = position.side === "LONG" ? 1 : -1;
+    const pnl = (lastPrice - entryPrice) * quantity * sideMultiplier;
 
-  decisions: [],
-  setDecisions: (decisions) => set({ decisions }),
-  prependDecision: (decision) =>
-    set((state) => ({ decisions: [decision, ...state.decisions].slice(0, 500) })),
-
-  metrics: null,
-  setMetrics: (metrics) => set({ metrics }),
-
-  exchangeBalances: null,
-  setExchangeBalances: (balances) => set({ exchangeBalances: balances }),
-
-  tickersBySymbol: {},
-  setTicker: (symbol, price, timestamp) =>
-    set((state) => ({
-      tickersBySymbol: { ...state.tickersBySymbol, [symbol]: { price, timestamp } },
-    })),
-}));
+    return {
+      ...position,
+      currentPrice: String(lastPrice),
+      unrealizedPnl: String(pnl.toFixed(4)),
+    };
+  });
+}

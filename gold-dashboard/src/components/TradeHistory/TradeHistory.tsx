@@ -1,78 +1,30 @@
-import { useEffect, useReducer, useState } from "react";
+import { useState } from "react";
 import { restClient } from "../../api";
+import { useListFetch } from "../../hooks/useListFetch";
 import { formatPrice } from "../../utils";
-import { AsyncBoundary } from "../AsyncBoundary";
-import type { AsyncState } from "../../hooks";
 import type { Position, TradingSymbol } from "../../types";
 import "./TradeHistory.css";
 
-const PAGE_LIMIT = 50;
+const PAGE_SIZE = 50;
 const AVAILABLE_SYMBOLS: (TradingSymbol | "ALL")[] = ["ALL", "BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT"];
 
-type FetchState = {
-  asyncState: AsyncState;
-  errorMessage: string | null;
-};
-
-type FetchAction =
-  | { type: "start" }
-  | { type: "success"; hasItems: boolean }
-  | { type: "error"; message: string };
-
-function fetchReducer(_state: FetchState, action: FetchAction): FetchState {
-  switch (action.type) {
-    case "start":
-      return { asyncState: "loading", errorMessage: null };
-    case "success":
-      return { asyncState: action.hasItems ? "ready" : "empty", errorMessage: null };
-    case "error":
-      return { asyncState: "error", errorMessage: action.message };
-  }
-}
-
 export function TradeHistory() {
-  const [positions, setPositions] = useState<Position[]>([]);
-  const [hasMore, setHasMore] = useState(false);
-  const [offset, setOffset] = useState(0);
   const [symbolFilter, setSymbolFilter] = useState<TradingSymbol | "ALL">("ALL");
-  const [{ asyncState, errorMessage }, dispatch] = useReducer(fetchReducer, {
-    asyncState: "loading",
-    errorMessage: null,
-  });
+  const [currentPage, setCurrentPage] = useState(0);
 
-  useEffect(() => {
-    let cancelled = false;
-    dispatch({ type: "start" });
+  const fetchKey = `trades-${currentPage}-${symbolFilter}`;
+  const { data, error, loading, refetch } = useListFetch(
+    fetchKey,
+    () => restClient.fetchClosedPositions(PAGE_SIZE, currentPage * PAGE_SIZE),
+    [currentPage],
+  );
+  const positions = data?.items ?? [];
+  const hasMore = data?.hasMore ?? false;
 
-    const symbol = symbolFilter === "ALL" ? undefined : symbolFilter;
-
-    restClient
-      .fetchPositionsHistory({ symbol, limit: PAGE_LIMIT, offset })
-      .then((response) => {
-        if (cancelled) return;
-        const items = response.items ?? [];
-        setPositions(items);
-        setHasMore(response.hasMore);
-        dispatch({ type: "success", hasItems: items.length > 0 });
-      })
-      .catch((error: unknown) => {
-        if (cancelled) return;
-        const message = error instanceof Error ? error.message : "Failed to load trade history";
-        dispatch({ type: "error", message });
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [offset, symbolFilter]);
-
-  function handleSymbolChange(value: TradingSymbol | "ALL") {
-    setSymbolFilter(value);
-    setOffset(0);
-  }
-
-  const isLoading = asyncState === "loading";
-  const currentPage = Math.floor(offset / PAGE_LIMIT) + 1;
+  // Filter client-side by symbol (the backend endpoint for positions/history doesn't support symbol filter)
+  const filteredPositions = symbolFilter === "ALL"
+    ? positions
+    : positions.filter((position) => position.symbol === symbolFilter);
 
   return (
     <div className="trade-history">
@@ -81,9 +33,8 @@ export function TradeHistory() {
           <span className="trade-history-filter-label">Symbol</span>
           <select
             value={symbolFilter}
-            onChange={(event) => handleSymbolChange(event.target.value as TradingSymbol | "ALL")}
+            onChange={(event) => setSymbolFilter(event.target.value as TradingSymbol | "ALL")}
             className="trade-history-select"
-            disabled={isLoading}
           >
             {AVAILABLE_SYMBOLS.map((symbol) => (
               <option key={symbol} value={symbol}>{symbol}</option>
@@ -95,36 +46,24 @@ export function TradeHistory() {
           <button
             type="button"
             className="trade-history-page-button"
-            onClick={() => setOffset((prev) => Math.max(0, prev - PAGE_LIMIT))}
-            disabled={offset === 0 || isLoading}
+            onClick={() => setCurrentPage((page) => Math.max(0, page - 1))}
+            disabled={currentPage === 0 || loading}
           >
             ← Previous
           </button>
-          <span className="trade-history-page-info">Page {currentPage}</span>
+          <span className="trade-history-page-info">Page {currentPage + 1}</span>
           <button
             type="button"
             className="trade-history-page-button"
-            onClick={() => setOffset((prev) => prev + PAGE_LIMIT)}
-            disabled={!hasMore || isLoading}
+            onClick={() => setCurrentPage((page) => page + 1)}
+            disabled={!hasMore || loading}
           >
             Next →
           </button>
         </div>
       </div>
 
-      <AsyncBoundary
-        state={asyncState}
-        onRetry={() => {
-          setOffset(0);
-          setSymbolFilter("ALL");
-        }}
-        emptyCopy={
-          symbolFilter === "ALL"
-            ? "No trades found. History will appear after the first closed position."
-            : `No trades found for ${symbolFilter}.`
-        }
-        errorMessage={errorMessage ?? "Failed to load trade history"}
-      >
+      {positions.length > 0 && (
         <div className="trade-history-table-container">
           <table className="trade-history-table">
             <thead>
@@ -140,15 +79,10 @@ export function TradeHistory() {
               </tr>
             </thead>
             <tbody>
-              {positions.map((position) => {
+              {filteredPositions.map((position) => {
                 const realizedPnl = position.realizedPnl ?? "0";
                 const realizedPnlNumeric = parseFloat(realizedPnl);
-                const pnlClassName =
-                  realizedPnlNumeric > 0
-                    ? "pnl-positive"
-                    : realizedPnlNumeric < 0
-                    ? "pnl-negative"
-                    : "pnl-neutral";
+                const pnlClassName = realizedPnlNumeric > 0 ? "pnl-positive" : realizedPnlNumeric < 0 ? "pnl-negative" : "pnl-neutral";
                 const sideClassName = position.side === "LONG" ? "side-long" : "side-short";
 
                 return (
@@ -159,20 +93,14 @@ export function TradeHistory() {
                       <span className={`side-badge ${sideClassName}`}>{position.side}</span>
                     </td>
                     <td className="numeric-cell">{formatPrice(position.entryPrice)}</td>
-                    <td className="numeric-cell">
-                      {position.exitPrice ? formatPrice(position.exitPrice) : "—"}
-                    </td>
+                    <td className="numeric-cell">{position.exitPrice ? formatPrice(position.exitPrice) : "—"}</td>
                     <td className="numeric-cell">{formatPrice(position.quantity)}</td>
                     <td className={`numeric-cell ${pnlClassName}`}>
                       {realizedPnlNumeric >= 0 ? "+" : ""}{formatPrice(realizedPnl)}
                     </td>
                     <td>
                       {position.closeReason && (
-                        <span
-                          className={`close-reason close-reason--${position.closeReason
-                            .toLowerCase()
-                            .replace(/_/g, "-")}`}
-                        >
+                        <span className={`close-reason close-reason--${position.closeReason.toLowerCase().replace(/_/g, "-")}`}>
                           {position.closeReason.replace(/_/g, " ")}
                         </span>
                       )}
@@ -183,7 +111,26 @@ export function TradeHistory() {
             </tbody>
           </table>
         </div>
-      </AsyncBoundary>
+      )}
+
+      {error && (
+        <div className="trade-history-error" role="alert">
+          <span>{error}</span>
+          <button type="button" onClick={refetch} className="trade-history-retry">Retry</button>
+        </div>
+      )}
+
+      {!error && loading && positions.length === 0 && (
+        <div className="trade-history-empty">Loading…</div>
+      )}
+
+      {!error && !loading && filteredPositions.length === 0 && (
+        <div className="trade-history-empty">
+          {symbolFilter === "ALL"
+            ? "No closed trades yet. History will appear after the first exit."
+            : `No closed trades for ${symbolFilter}.`}
+        </div>
+      )}
     </div>
   );
 }

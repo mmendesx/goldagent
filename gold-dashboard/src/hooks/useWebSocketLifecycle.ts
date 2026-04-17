@@ -1,25 +1,33 @@
 import { useEffect } from "react";
 import { webSocketClient } from "../api";
 import { useDashboardStore, candleKey, candleToChartCandle } from "../store";
+import { TickBuffer, chartSeriesRegistry } from "../utils";
 import type { WebSocketMessage } from "../types";
 
 export function useWebSocketLifecycle(): void {
   const setConnectionState = useDashboardStore((s) => s.setConnectionState);
-  const setReconnectAttempts = useDashboardStore((s) => s.setReconnectAttempts);
   const appendOrUpdateCandle = useDashboardStore((s) => s.appendOrUpdateCandle);
+  const setLastPrice = useDashboardStore((s) => s.setLastPrice);
   const upsertOpenPosition = useDashboardStore((s) => s.upsertOpenPosition);
   const removeOpenPosition = useDashboardStore((s) => s.removeOpenPosition);
   const setMetrics = useDashboardStore((s) => s.setMetrics);
   const prependDecision = useDashboardStore((s) => s.prependDecision);
-  const setTicker = useDashboardStore((s) => s.setTicker);
 
   useEffect(() => {
-    const unsubscribeState = webSocketClient.onConnectionStateChange((state) => {
-      setConnectionState(state);
+    const tickBuffer = new TickBuffer((candleUpdates, priceUpdates) => {
+      for (const [key, candle] of candleUpdates) {
+        // Always keep the store in sync for cache consistency
+        appendOrUpdateCandle(key, candle);
+        // Also imperatively update the visible series when key matches — bypasses React re-render
+        chartSeriesRegistry.tryUpdate(key, candle);
+      }
+      for (const [symbol, { price, time }] of priceUpdates) {
+        setLastPrice(symbol, price, time);
+      }
     });
 
-    const unsubscribeAttempts = webSocketClient.onReconnectAttempt((attempt) => {
-      setReconnectAttempts(attempt);
+    const unsubscribeState = webSocketClient.onConnectionStateChange((state) => {
+      setConnectionState(state);
     });
 
     const unsubscribeMessage = webSocketClient.subscribe((message: WebSocketMessage) => {
@@ -27,7 +35,9 @@ export function useWebSocketLifecycle(): void {
         case "candle_update": {
           const candle = message.payload;
           const key = candleKey(candle.symbol, candle.interval);
-          appendOrUpdateCandle(key, candleToChartCandle(candle));
+          const chartCandle = candleToChartCandle(candle);
+          tickBuffer.pushCandle(key, chartCandle);
+          tickBuffer.pushPrice(candle.symbol, parseFloat(candle.closePrice), chartCandle.time);
           break;
         }
         case "trade_executed":
@@ -53,11 +63,6 @@ export function useWebSocketLifecycle(): void {
           prependDecision(message.payload);
           break;
         }
-        case "ticker_update": {
-          const { symbol, price, timestamp } = message.payload;
-          setTicker(symbol, parseFloat(price), timestamp);
-          break;
-        }
       }
     });
 
@@ -66,17 +71,16 @@ export function useWebSocketLifecycle(): void {
     return () => {
       unsubscribeMessage();
       unsubscribeState();
-      unsubscribeAttempts();
+      tickBuffer.destroy();
       webSocketClient.disconnect();
     };
   }, [
     setConnectionState,
-    setReconnectAttempts,
     appendOrUpdateCandle,
+    setLastPrice,
     upsertOpenPosition,
     removeOpenPosition,
     setMetrics,
     prependDecision,
-    setTicker,
   ]);
 }
