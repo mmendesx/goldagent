@@ -82,3 +82,26 @@ th {
   white-space: nowrap;
   border-width: 0;
 }
+
+/* Reduced motion — disable all transforms and auto-animations */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* 200% zoom / narrow viewport support */
+html {
+  overflow-x: hidden;
+}
+body {
+  min-width: 0;
+  word-break: break-word;
+}
+.exchange-tabs,
+.view-tabs {
+  flex-wrap: wrap;
+}
