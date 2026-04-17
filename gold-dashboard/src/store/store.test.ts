@@ -78,7 +78,7 @@ describe("selectOpenPositionsWithLivePnl", () => {
   };
 
   it("returns position unchanged when no tick for symbol", () => {
-    useDashboardStore.setState({ openPositions: [basePosition], lastPrice: {} }, true);
+    useDashboardStore.setState({ openPositions: [basePosition], lastPrice: {} });
     const state = useDashboardStore.getState();
     const result = selectOpenPositionsWithLivePnl(state);
     expect(result[0]).toEqual(basePosition);
@@ -86,13 +86,10 @@ describe("selectOpenPositionsWithLivePnl", () => {
   });
 
   it("computes LONG PnL: (lastPrice - entry) * qty * +1", () => {
-    useDashboardStore.setState(
-      {
-        openPositions: [{ ...basePosition, side: "LONG" }],
-        lastPrice: { BTCUSDT: { price: 41000, time: 1000 } },
-      },
-      true
-    );
+    useDashboardStore.setState({
+      openPositions: [{ ...basePosition, side: "LONG" }],
+      lastPrice: { BTCUSDT: { price: 41000, time: 1000 } },
+    });
     const state = useDashboardStore.getState();
     const result = selectOpenPositionsWithLivePnl(state);
     // (41000 - 40000) * 0.5 * 1 = 500
@@ -101,13 +98,10 @@ describe("selectOpenPositionsWithLivePnl", () => {
   });
 
   it("computes SHORT PnL: (lastPrice - entry) * qty * -1", () => {
-    useDashboardStore.setState(
-      {
-        openPositions: [{ ...basePosition, side: "SHORT" }],
-        lastPrice: { BTCUSDT: { price: 41000, time: 1000 } },
-      },
-      true
-    );
+    useDashboardStore.setState({
+      openPositions: [{ ...basePosition, side: "SHORT" }],
+      lastPrice: { BTCUSDT: { price: 41000, time: 1000 } },
+    });
     const state = useDashboardStore.getState();
     const result = selectOpenPositionsWithLivePnl(state);
     // (41000 - 40000) * 0.5 * -1 = -500
