@@ -2,9 +2,9 @@
   display: inline-flex;
   gap: 2px;
   padding: 2px;
-  background: var(--color-surface-elevated);
+  background: var(--color-surface-2);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-medium);
+  border-radius: var(--radius-md);
 }
 
 .interval-button {
@@ -13,16 +13,16 @@
   font-family: var(--font-mono);
   font-size: 13px;
   font-weight: 500;
-  border-radius: var(--radius-small);
+  border-radius: var(--radius-sm);
   transition: all 0.15s;
 }
 
 .interval-button:hover {
   color: var(--color-text-primary);
-  background: var(--color-surface);
+  background: var(--color-surface-1);
 }
 
 .interval-button.active {
-  color: var(--color-background);
+  color: var(--color-bg);
   background: var(--color-accent);
 }

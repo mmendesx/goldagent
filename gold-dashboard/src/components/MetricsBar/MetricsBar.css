@@ -4,7 +4,7 @@
   align-items: center;
   gap: 2rem;
   padding: 1rem 1.5rem;
-  background: var(--color-surface-elevated);
+  background: var(--color-surface-2);
   border-bottom: 1px solid var(--color-border);
 }
 
@@ -47,10 +47,10 @@
 .circuit-breaker-alert {
   margin-left: auto;
   padding: 0.5rem 1rem;
-  background: rgba(239, 68, 68, 0.15);
+  background: rgba(231, 76, 60, 0.15);
   color: var(--color-negative);
   border: 1px solid var(--color-negative);
-  border-radius: var(--radius-medium);
+  border-radius: var(--radius-md);
   font-weight: 600;
   font-size: 13px;
   animation: pulse-warning 2s ease-in-out infinite;

@@ -7,7 +7,7 @@
 }
 
 .dashboard-metrics {
-  background-color: var(--color-surface-elevated);
+  background-color: var(--color-surface-2);
   border-bottom: 1px solid var(--color-border);
   padding: 12px 20px;
   flex-shrink: 0;
@@ -22,7 +22,7 @@
   display: flex;
   flex-direction: row;
   gap: 0;
-  background-color: var(--color-surface-elevated);
+  background-color: var(--color-surface-2);
   border-bottom: 1px solid var(--color-border);
   padding: 0 20px;
   flex-shrink: 0;
@@ -53,7 +53,7 @@
   display: flex;
   flex-direction: row;
   gap: 0;
-  background-color: var(--color-surface);
+  background-color: var(--color-surface-1);
   border-bottom: 1px solid var(--color-border);
   padding: 0 20px;
   flex-shrink: 0;
@@ -83,7 +83,7 @@
   flex: 1;
   overflow: auto;
   padding: 20px;
-  background-color: var(--color-background);
+  background-color: var(--color-bg);
 }
 
 .placeholder-panel {
@@ -125,40 +125,40 @@
 
 /* open → green */
 .connection-badge--open {
-  background-color: rgba(34, 197, 94, 0.1);
-  border-color: rgba(34, 197, 94, 0.3);
-  color: #22c55e;
+  background-color: rgba(38, 166, 91, 0.1);
+  border-color: rgba(38, 166, 91, 0.3);
+  color: var(--color-positive);
 }
 
 .connection-badge--open .connection-badge__dot {
-  background-color: #22c55e;
-  box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.25);
+  background-color: var(--color-positive);
+  box-shadow: 0 0 0 2px rgba(38, 166, 91, 0.25);
   animation: pulse-green 2s ease-in-out infinite;
 }
 
 /* connecting / reconnecting → yellow */
 .connection-badge--connecting,
 .connection-badge--reconnecting {
-  background-color: rgba(234, 179, 8, 0.1);
-  border-color: rgba(234, 179, 8, 0.3);
-  color: #eab308;
+  background-color: rgba(243, 156, 18, 0.1);
+  border-color: rgba(243, 156, 18, 0.3);
+  color: var(--color-warning);
 }
 
 .connection-badge--connecting .connection-badge__dot,
 .connection-badge--reconnecting .connection-badge__dot {
-  background-color: #eab308;
+  background-color: var(--color-warning);
   animation: pulse-yellow 1s ease-in-out infinite;
 }
 
 /* closed → red */
 .connection-badge--closed {
-  background-color: rgba(239, 68, 68, 0.1);
-  border-color: rgba(239, 68, 68, 0.3);
-  color: #ef4444;
+  background-color: rgba(231, 76, 60, 0.1);
+  border-color: rgba(231, 76, 60, 0.3);
+  color: var(--color-negative);
 }
 
 .connection-badge--closed .connection-badge__dot {
-  background-color: #ef4444;
+  background-color: var(--color-negative);
 }
 
 @keyframes pulse-green {

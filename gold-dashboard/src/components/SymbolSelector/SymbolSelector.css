@@ -12,10 +12,10 @@
 }
 
 .symbol-selector-select {
-  background: var(--color-surface-elevated);
+  background: var(--color-surface-2);
   color: var(--color-text-primary);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-small);
+  border-radius: var(--radius-sm);
   padding: 0.5rem 0.75rem;
   font-family: var(--font-mono);
   font-size: 14px;
@@ -30,5 +30,5 @@
 .symbol-selector-select:focus {
   outline: none;
   border-color: var(--color-accent);
-  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+  box-shadow: 0 0 0 2px rgba(240, 180, 41, 0.2);
 }

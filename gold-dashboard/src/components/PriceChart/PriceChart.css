@@ -16,9 +16,9 @@
   flex: 1;
   position: relative;
   min-height: 400px;
-  background: var(--color-surface-elevated);
+  background: var(--color-surface-2);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-medium);
+  border-radius: var(--radius-md);
   overflow: hidden;
 }
 
@@ -28,7 +28,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(18, 18, 26, 0.8);
+  background: rgba(17, 19, 24, 0.8);
   color: var(--color-text-secondary);
   font-size: 14px;
   z-index: 10;

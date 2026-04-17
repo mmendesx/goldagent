@@ -1,0 +1,51 @@
+@keyframes skeleton-shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--color-surface-2) 0%,
+    var(--color-surface-3) 50%,
+    var(--color-surface-2) 100%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.4s ease-in-out infinite;
+  border-radius: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    animation: none;
+    background: var(--color-surface-2);
+  }
+}
+
+/* text variant */
+.skeleton--text {
+  display: inline-block;
+  height: 14px;
+  width: 100%;
+  border-radius: 3px;
+}
+
+/* block variant */
+.skeleton--block {
+  display: block;
+  height: 120px;
+  width: 100%;
+  border-radius: 6px;
+}
+
+/* row variant */
+.skeleton--row {
+  display: block;
+  height: 40px;
+  width: 100%;
+  border-radius: 4px;
+}
