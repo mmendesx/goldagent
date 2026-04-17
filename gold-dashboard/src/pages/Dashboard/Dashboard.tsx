@@ -17,6 +17,7 @@ export function Dashboard() {
   const setMetrics = useDashboardStore((state) => state.setMetrics);
   const setOpenPositions = useDashboardStore((state) => state.setOpenPositions);
   const setClosedPositions = useDashboardStore((state) => state.setClosedPositions);
+  const reconnectAttempts = useDashboardStore((state) => state.reconnectAttempts);
 
   useEffect(() => {
     restClient
@@ -43,7 +44,7 @@ export function Dashboard() {
     <PageShell
       header={
         <>
-          <ErrorBoundary>
+          <ErrorBoundary resetKeys={[reconnectAttempts]}>
             <MetricsBar />
           </ErrorBoundary>
           <div className="dashboard-header-right">
