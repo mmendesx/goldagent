@@ -2,7 +2,7 @@ import { useState } from "react";
 import { restClient } from "../../api";
 import { useListFetch } from "../../hooks/useListFetch";
 import { formatPrice } from "../../utils";
-import type { Position, TradingSymbol } from "../../types";
+import type { TradingSymbol } from "../../types";
 import "./TradeHistory.css";
 
 const PAGE_SIZE = 50;

@@ -97,12 +97,12 @@ export function DecisionLog() {
 function DecisionRow({ decision }: { decision: Decision }) {
   const actionClassName = getActionClassName(decision.action);
   const statusClassName = getStatusClassName(decision.executionStatus);
-  const compositeScoreNumeric = parseFloat(decision.compositeScore);
+  const compositeScoreNumeric = parseFloat(decision.compositeScore ?? "0");
   const scoreClassName = compositeScoreNumeric > 0 ? "score-positive" : compositeScoreNumeric < 0 ? "score-negative" : "score-neutral";
 
   return (
     <tr>
-      <td>{formatDateTime(decision.createdAt)}</td>
+      <td>{decision.createdAt ? formatDateTime(decision.createdAt) : "—"}</td>
       <td className="symbol-cell">{decision.symbol}</td>
       <td>
         <span className={`action-badge ${actionClassName}`}>{decision.action}</span>

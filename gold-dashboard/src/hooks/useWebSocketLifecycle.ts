@@ -52,7 +52,7 @@ export function useWebSocketLifecycle(): void {
         }
         case "position_closed": {
           const position = message.payload;
-          removeOpenPosition(position.id);
+          if (position.id !== undefined) removeOpenPosition(position.id);
           break;
         }
         case "metric_update": {

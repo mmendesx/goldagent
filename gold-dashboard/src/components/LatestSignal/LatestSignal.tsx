@@ -33,16 +33,18 @@ export function LatestSignal({ decision }: LatestSignalProps) {
         </div>
         <time
           className="latest-signal__timestamp"
-          dateTime={decision.createdAt}
-          title={new Date(decision.createdAt).toLocaleString()}
+          dateTime={decision.createdAt ?? ""}
+          title={decision.createdAt ? new Date(decision.createdAt).toLocaleString() : ""}
         >
-          {formatRelativeTime(decision.createdAt)}
+          {decision.createdAt ? formatRelativeTime(decision.createdAt) : "—"}
         </time>
       </header>
 
       <div className="latest-signal__body">
         <ConfidenceRow confidence={decision.confidence} />
-        <CompositeScoreRow compositeScore={decision.compositeScore} />
+        {decision.compositeScore !== undefined && (
+          <CompositeScoreRow compositeScore={decision.compositeScore} />
+        )}
         <StatusRow executionStatus={decision.executionStatus} />
         <ReasoningRow reasoning={decision.reasoning} />
       </div>

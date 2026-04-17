@@ -38,6 +38,8 @@ export interface DashboardState {
   // Connection state
   connectionState: "connecting" | "open" | "closed" | "reconnecting";
   setConnectionState: (state: DashboardState["connectionState"]) => void;
+  reconnectAttempts: number;
+  setReconnectAttempts: (attempts: number) => void;
 
   // Per-exchange chart selection
   chartSelection: {
@@ -111,6 +113,8 @@ export const useDashboardStore = create<DashboardState>()(
     (set) => ({
       connectionState: "closed",
       setConnectionState: (state) => set({ connectionState: state }),
+      reconnectAttempts: 0,
+      setReconnectAttempts: (attempts) => set({ reconnectAttempts: attempts }),
 
       chartSelection: {
         binance: { symbol: "BTCUSDT", interval: "5m" },

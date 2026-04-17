@@ -268,6 +268,7 @@ export function PriceChart({ exchange }: PriceChartProps) {
 
     // Entry markers for open positions: yellow down arrow above bar
     for (const position of openPositions.filter((p) => p.symbol === symbol)) {
+      if (!position.openedAt) continue;
       const openedAtTime = Math.floor(new Date(position.openedAt).getTime() / 1000) as Time;
       result.push({
         time: openedAtTime,
@@ -280,6 +281,7 @@ export function PriceChart({ exchange }: PriceChartProps) {
 
     // Entry + exit markers for closed positions
     for (const position of closedPositions.filter((p) => p.symbol === symbol)) {
+      if (!position.openedAt) continue;
       const openedAtTime = Math.floor(new Date(position.openedAt).getTime() / 1000) as Time;
 
       // Entry — red down arrow labeled SHORT
