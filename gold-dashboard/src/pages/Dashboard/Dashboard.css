@@ -18,7 +18,8 @@
 }
 
 
-.dashboard-tabs {
+.dashboard-tabs,
+.view-tabs {
   display: flex;
   flex-direction: row;
   gap: 0;
