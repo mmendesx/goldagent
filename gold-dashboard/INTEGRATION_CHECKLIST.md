@@ -251,3 +251,29 @@ The WebSocket reconnects automatically (exponential backoff, up to ~30 seconds).
 ### Paginated endpoint returns unexpected shape
 
 All list endpoints except `GET /api/v1/positions` return the paginated envelope. If a consumer expects a bare array from `/api/v1/positions/history` or `/api/v1/trades`, it will receive an object — read `items` from the response.
+
+---
+
+## Spec-6: Dashboard Pro Redesign + WCAG 2.1 AA
+
+### Design System
+- **Tokens**: `src/styles/tokens.css` — two-theme (dark/light) CSS custom properties. All components use `var(--token)` references. Backward-compat aliases keep existing components working during migration.
+- **Primitives**: `src/design-system/` — Button, Card, Badge, Skeleton/SkeletonContainer, VisuallyHidden, SkipLink, ThemeToggle
+- **Composition**: `src/design-system/` — PageShell, AnimatedTabs, MetricCard, LiveNumber
+
+### Vendored Libraries
+- **animate-ui**: `src/vendor/animate-ui/` — Tabs (Radix), Fade/Fades, Highlight, SlidingNumber. License: MIT.
+- **react-bits**: `src/vendor/react-bits/` — CountUp, GradientText. License: MIT.
+- Vendor dir is tracked in git (added negation to root .gitignore).
+
+### Accessibility
+- **Automated**: `npm run test:e2e` (Playwright + axe-core). Runs against live dev server at `http://localhost:5173`.
+- **Lighthouse**: `npm run lighthouse` — asserts accessibility score ≥0.95.
+- **Manual**: VoiceOver pass required before production deploy. Coverage: landmarks, tablist announcement, live-region balance, skip-link, error alert.
+
+### Reduced Motion
+- JS animations: `MotionConfig reducedMotion="user"` in App.tsx handles motion/react animations.
+- CSS animations: `@media (prefers-reduced-motion: reduce)` in globals.css collapses all durations.
+
+### Spec-5 Status
+- Superseded by spec-6. Archived to `tasks/specs/_archive/spec-5-dashboard-ultimate-redesign.md`.
