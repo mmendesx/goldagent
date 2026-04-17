@@ -4,6 +4,7 @@ import {
   createSeriesMarkers,
   CandlestickSeries,
   HistogramSeries,
+  LineSeries,
   type IChartApi,
   type ISeriesApi,
   type ISeriesMarkersPluginApi,
@@ -11,13 +12,14 @@ import {
   type Time,
   ColorType,
 } from "lightweight-charts";
-import { useDashboardStore, candleKey, candleToChartCandle } from "../../store";
-import { chartSeriesRegistry } from "../../utils";
+import { useDashboardStore, candleKey, candleToChartCandle, selectChartIndicators } from "../../store";
+import { chartSeriesRegistry, sma, vwap } from "../../utils";
 import { useChartSelection } from "../../hooks/useChartSelection";
 import type { Exchange } from "../../hooks/useChartSelection";
 import { restClient } from "../../api";
 import { SymbolSelector } from "../SymbolSelector/SymbolSelector";
 import { IntervalButtons } from "../IntervalButtons/IntervalButtons";
+import { ChartSettings } from "../ChartSettings";
 import type { ChartCandle } from "../../types";
 import "./PriceChart.css";
 
@@ -44,6 +46,9 @@ export function PriceChart({ exchange }: PriceChartProps) {
   const chartRef = useRef<IChartApi | null>(null);
   const candlestickSeriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const volumeSeriesRef = useRef<ISeriesApi<"Histogram"> | null>(null);
+  const ma1SeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
+  const ma2SeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
+  const vwapSeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
   const markersApiRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -55,6 +60,8 @@ export function PriceChart({ exchange }: PriceChartProps) {
   const closedPositions = useDashboardStore((state) => state.closedPositions);
 
   const activeKey = candleKey(symbol, interval);
+  const settingsKey = `${exchange}|${symbol}|${interval}`;
+  const settings = useDashboardStore(selectChartIndicators(settingsKey));
   const candles = useDashboardStore((state) => state.candlesByKey[activeKey]) ?? EMPTY_CANDLES;
   const candleLoading = useDashboardStore((s) => s.candleLoading);
   const isKeyLoading = candleLoading[activeKey] ?? false;
@@ -104,12 +111,39 @@ export function PriceChart({ exchange }: PriceChartProps) {
       scaleMargins: { top: 0.8, bottom: 0 },
     });
 
+    const ma1Series = chart.addSeries(LineSeries, {
+      color: '#f59e0b',
+      lineWidth: 1,
+      priceScaleId: 'right',
+      lastValueVisible: false,
+      priceLineVisible: false,
+    });
+
+    const ma2Series = chart.addSeries(LineSeries, {
+      color: '#8b5cf6',
+      lineWidth: 1,
+      priceScaleId: 'right',
+      lastValueVisible: false,
+      priceLineVisible: false,
+    });
+
+    const vwapSeries = chart.addSeries(LineSeries, {
+      color: '#06b6d4',
+      lineWidth: 1,
+      priceScaleId: 'right',
+      lastValueVisible: false,
+      priceLineVisible: false,
+    });
+
     // v5 markers API — must be created via createSeriesMarkers factory
     const markersApi = createSeriesMarkers(candlestickSeries, []);
 
     chartRef.current = chart;
     candlestickSeriesRef.current = candlestickSeries;
     volumeSeriesRef.current = volumeSeries;
+    ma1SeriesRef.current = ma1Series;
+    ma2SeriesRef.current = ma2Series;
+    vwapSeriesRef.current = vwapSeries;
     markersApiRef.current = markersApi;
 
     return () => {
@@ -119,6 +153,9 @@ export function PriceChart({ exchange }: PriceChartProps) {
       chartRef.current = null;
       candlestickSeriesRef.current = null;
       volumeSeriesRef.current = null;
+      ma1SeriesRef.current = null;
+      ma2SeriesRef.current = null;
+      vwapSeriesRef.current = null;
       markersApiRef.current = null;
     };
   }, []);
@@ -187,6 +224,43 @@ export function PriceChart({ exchange }: PriceChartProps) {
     candlestickSeriesRef.current.setData(candlestickData);
     volumeSeriesRef.current.setData(volumeData);
   }, [candles]);
+
+  // Apply indicator visibility (volume) regardless of candle count
+  useEffect(() => {
+    if (volumeSeriesRef.current) {
+      volumeSeriesRef.current.applyOptions({ visible: settings.volume.enabled });
+    }
+  }, [settings.volume.enabled]);
+
+  // Compute and apply MA/VWAP from candles whenever candles or settings change
+  useEffect(() => {
+    if (!ma1SeriesRef.current || !ma2SeriesRef.current || !vwapSeriesRef.current) return;
+    if (candles.length === 0) return;
+
+    const { ma, vwap: vwapSettings } = settings;
+
+    if (ma.enabled) {
+      const ma1Data = sma(candles, ma.periods[0]).map((p) => ({ time: p.time as Time, value: p.value }));
+      const ma2Data = sma(candles, ma.periods[1]).map((p) => ({ time: p.time as Time, value: p.value }));
+      ma1SeriesRef.current.setData(ma1Data);
+      ma2SeriesRef.current.setData(ma2Data);
+      ma1SeriesRef.current.applyOptions({ visible: true });
+      ma2SeriesRef.current.applyOptions({ visible: true });
+    } else {
+      ma1SeriesRef.current.applyOptions({ visible: false });
+      ma2SeriesRef.current.applyOptions({ visible: false });
+    }
+
+    if (vwapSettings.enabled) {
+      // VWAP resets daily for sub-hour intervals (1m, 5m, 15m), continuous for 1h
+      const session = interval !== '1h' ? 'day' : undefined;
+      const vwapData = vwap(candles, session).map((p) => ({ time: p.time as Time, value: p.value }));
+      vwapSeriesRef.current.setData(vwapData);
+      vwapSeriesRef.current.applyOptions({ visible: true });
+    } else {
+      vwapSeriesRef.current.applyOptions({ visible: false });
+    }
+  }, [candles, settings, interval]);
 
   // Build marker array — only recomputed when positions or symbol change
   const markers = useMemo<SeriesMarker<Time>[]>(() => {
@@ -265,6 +339,7 @@ export function PriceChart({ exchange }: PriceChartProps) {
       <div className="price-chart-controls">
         <SymbolSelector symbol={symbol} onSymbolChange={setSymbol} />
         <IntervalButtons interval={interval} onIntervalChange={setInterval} />
+        <ChartSettings settingsKey={settingsKey} />
       </div>
       <div className="price-chart-container" ref={containerRef}>
         {isKeyLoading && (
