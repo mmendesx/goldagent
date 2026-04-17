@@ -74,7 +74,7 @@ export function MetricsBar() {
         severity={analytics.cumulative < 0 ? 'medium' : undefined}
       />
       <MetricItem
-        label="Win Rate"
+        label="Win Rate (live)"
         value={
           analytics.winRateResult
             ? `${(analytics.winRateResult.rate * 100).toFixed(1)}% (${analytics.winRateResult.wins}W/${analytics.winRateResult.losses}L)`
