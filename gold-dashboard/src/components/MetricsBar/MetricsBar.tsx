@@ -1,9 +1,14 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useDashboardStore } from "../../store";
-import { formatCurrency, formatPercent, getDrawdownSeverity } from "../../utils";
+import { formatCurrency, formatPercent, getDrawdownSeverity, dailyPnl, cumulativePnl, winRate as computeWinRate, maxDrawdown } from "../../utils";
 import { restClient } from "../../api";
 import { MetricItem } from "./MetricItem";
 import "./MetricsBar.css";
+
+function formatSignedPnl(value: number): string {
+  const prefix = value >= 0 ? '+' : '';
+  return `${prefix}$${Math.abs(value).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
 
 const EXCHANGE_BALANCE_POLL_MS = 30_000;
 
@@ -12,7 +17,15 @@ export function MetricsBar() {
   const openPositionCount = useDashboardStore((state) => state.openPositions.length);
   const exchangeBalances = useDashboardStore((state) => state.exchangeBalances);
   const setExchangeBalances = useDashboardStore((state) => state.setExchangeBalances);
+  const closedPositions = useDashboardStore((state) => state.closedPositions);
   const [balanceError, setBalanceError] = useState<string | null>(null);
+
+  const analytics = useMemo(() => ({
+    daily: dailyPnl(closedPositions),
+    cumulative: cumulativePnl(closedPositions),
+    winRateResult: computeWinRate(closedPositions),
+    drawdownResult: maxDrawdown(closedPositions),
+  }), [closedPositions]);
 
   const fetchBalances = useCallback(() => {
     restClient.fetchExchangeBalances()
@@ -50,6 +63,35 @@ export function MetricsBar() {
       <MetricItem label="Win Rate" value={formatPercent(winRate, 1)} />
       <MetricItem label="Total Trades" value={totalTrades.toString()} />
       <MetricItem label="Open Positions" value={openPositionCount.toString()} />
+      <MetricItem
+        label="Daily P&L"
+        value={formatSignedPnl(analytics.daily)}
+        severity={analytics.daily < 0 ? 'high' : undefined}
+      />
+      <MetricItem
+        label="Cumul. P&L"
+        value={formatSignedPnl(analytics.cumulative)}
+        severity={analytics.cumulative < 0 ? 'medium' : undefined}
+      />
+      <MetricItem
+        label="Win Rate"
+        value={
+          analytics.winRateResult
+            ? `${(analytics.winRateResult.rate * 100).toFixed(1)}% (${analytics.winRateResult.wins}W/${analytics.winRateResult.losses}L)`
+            : '—'
+        }
+      />
+      <MetricItem
+        label="Max Drawdown"
+        value={
+          analytics.drawdownResult.absolute > 0
+            ? analytics.drawdownResult.relative != null
+              ? `$${analytics.drawdownResult.absolute.toFixed(2)} (${(analytics.drawdownResult.relative * 100).toFixed(1)}%)`
+              : `$${analytics.drawdownResult.absolute.toFixed(2)}`
+            : '—'
+        }
+        severity={analytics.drawdownResult.absolute > 0 ? 'medium' : undefined}
+      />
       <MetricItem
         label="Binance USDT"
         value={
