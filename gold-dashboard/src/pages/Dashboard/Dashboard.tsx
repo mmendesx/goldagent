@@ -5,10 +5,8 @@ import { useDashboardStore } from "../../store";
 import { restClient } from "../../api";
 import type { ConnectionState } from "../../api";
 import { MetricsBar } from "../../components/MetricsBar";
-import { OpenPositions } from "../../components/OpenPositions/OpenPositions";
-import { PriceChart } from "../../components/PriceChart/PriceChart";
-import { DecisionLog } from "../../components/DecisionLog/DecisionLog";
-import { TradeHistory } from "../../components/TradeHistory";
+import { BinanceView } from "./BinanceView";
+import { PolymarketView } from "./PolymarketView";
 import "./Dashboard.css";
 
 export function Dashboard() {
@@ -47,42 +45,20 @@ export function Dashboard() {
         <ConnectionBadge state={connectionState} />
       </header>
 
-      <nav className="dashboard-tabs" aria-label="Dashboard sections">
-        <NavLink
-          to="/chart"
-          className={({ isActive }) => (isActive ? "tab-link active" : "tab-link")}
-        >
-          Chart
+      <nav className="exchange-tabs" aria-label="Exchange">
+        <NavLink to="/binance" className={({ isActive }) => (isActive ? "exchange-tab active" : "exchange-tab")}>
+          Binance
         </NavLink>
-        <NavLink
-          to="/positions"
-          className={({ isActive }) => (isActive ? "tab-link active" : "tab-link")}
-        >
-          Open Positions
-        </NavLink>
-        <NavLink
-          to="/history"
-          className={({ isActive }) => (isActive ? "tab-link active" : "tab-link")}
-        >
-          Trade History
-        </NavLink>
-        <NavLink
-          to="/decisions"
-          className={({ isActive }) => (isActive ? "tab-link active" : "tab-link")}
-        >
-          Decision Log
+        <NavLink to="/polymarket" className={({ isActive }) => (isActive ? "exchange-tab active" : "exchange-tab")}>
+          Polymarket
         </NavLink>
       </nav>
 
-      <main className="dashboard-content">
-        <Routes>
-          <Route path="/chart" element={<PriceChart />} />
-          <Route path="/positions" element={<OpenPositions />} />
-          <Route path="/history" element={<TradeHistory />} />
-          <Route path="/decisions" element={<DecisionLog />} />
-          <Route path="/" element={<Navigate to="/chart" replace />} />
-        </Routes>
-      </main>
+      <Routes>
+        <Route path="/binance/*" element={<BinanceView />} />
+        <Route path="/polymarket/*" element={<PolymarketView />} />
+        <Route path="/" element={<Navigate to="/binance/chart" replace />} />
+      </Routes>
     </div>
   );
 }

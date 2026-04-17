@@ -18,6 +18,36 @@
 }
 
 
+.exchange-tabs {
+  display: flex;
+  flex-direction: row;
+  gap: 0;
+  background-color: var(--color-surface-elevated);
+  border-bottom: 1px solid var(--color-border);
+  padding: 0 20px;
+  flex-shrink: 0;
+}
+
+.exchange-tab {
+  display: inline-block;
+  padding: 10px 20px;
+  color: var(--color-text-secondary);
+  font-size: 14px;
+  font-weight: 600;
+  border-bottom: 3px solid transparent;
+  transition: color 0.15s ease, border-color 0.15s ease;
+  white-space: nowrap;
+}
+
+.exchange-tab:hover {
+  color: var(--color-text-primary);
+}
+
+.exchange-tab.active {
+  color: var(--color-accent);
+  border-bottom-color: var(--color-accent);
+}
+
 .dashboard-tabs,
 .view-tabs {
   display: flex;
