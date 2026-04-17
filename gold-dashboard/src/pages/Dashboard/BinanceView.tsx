@@ -37,7 +37,7 @@ export function BinanceView() {
 
       <main className="dashboard-content">
         <Routes>
-          <Route path="chart" element={<PriceChart />} />
+          <Route path="chart" element={<PriceChart exchange="binance" />} />
           <Route path="positions" element={<OpenPositions />} />
           <Route path="history" element={<TradeHistory />} />
           <Route path="decisions" element={<DecisionLog />} />

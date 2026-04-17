@@ -26,12 +26,6 @@ interface DashboardState {
   connectionState: "connecting" | "open" | "closed" | "reconnecting";
   setConnectionState: (state: DashboardState["connectionState"]) => void;
 
-  // Selected symbol/interval (chart context) — legacy, will be migrated in ICT-2
-  selectedSymbol: TradingSymbol;
-  selectedInterval: ChartInterval;
-  setSelectedSymbol: (symbol: TradingSymbol) => void;
-  setSelectedInterval: (interval: ChartInterval) => void;
-
   // Per-exchange chart selection
   chartSelection: {
     binance: ChartSelectionEntry;
@@ -95,11 +89,6 @@ export function candleToChartCandle(candle: Candle): ChartCandle {
 export const useDashboardStore = create<DashboardState>((set) => ({
   connectionState: "closed",
   setConnectionState: (state) => set({ connectionState: state }),
-
-  selectedSymbol: "BTCUSDT",
-  selectedInterval: "5m",
-  setSelectedSymbol: (symbol) => set({ selectedSymbol: symbol }),
-  setSelectedInterval: (interval) => set({ selectedInterval: interval }),
 
   chartSelection: {
     binance: { symbol: "BTCUSDT", interval: "5m" },

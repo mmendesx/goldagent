@@ -12,6 +12,8 @@ import {
   ColorType,
 } from "lightweight-charts";
 import { useDashboardStore, candleKey, candleToChartCandle } from "../../store";
+import { useChartSelection } from "../../hooks/useChartSelection";
+import type { Exchange } from "../../hooks/useChartSelection";
 import { restClient } from "../../api";
 import { SymbolSelector } from "../SymbolSelector/SymbolSelector";
 import { IntervalButtons } from "../IntervalButtons/IntervalButtons";
@@ -46,7 +48,11 @@ const CHART_THEME = {
   borderColor: "#2a2a3a",
 };
 
-export function PriceChart() {
+interface PriceChartProps {
+  exchange: Exchange;
+}
+
+export function PriceChart({ exchange }: PriceChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const candlestickSeriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
@@ -54,13 +60,12 @@ export function PriceChart() {
   const markersApiRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
   const [{ isLoading, errorMessage }, dispatch] = useReducer(fetchReducer, { isLoading: true, errorMessage: null });
 
-  const selectedSymbol = useDashboardStore((state) => state.selectedSymbol);
-  const selectedInterval = useDashboardStore((state) => state.selectedInterval);
+  const { symbol, interval, setSymbol, setInterval } = useChartSelection(exchange);
   const setCandlesForKey = useDashboardStore((state) => state.setCandlesForKey);
   const openPositions = useDashboardStore((state) => state.openPositions);
   const closedPositions = useDashboardStore((state) => state.closedPositions);
 
-  const key = candleKey(selectedSymbol, selectedInterval);
+  const key = candleKey(symbol, interval);
   const candles = useDashboardStore((state) => state.candlesByKey[key]) ?? EMPTY_CANDLES;
 
   // Initialize chart once — empty deps so this runs only on mount
@@ -133,8 +138,8 @@ export function PriceChart() {
 
     restClient
       .fetchCandles({
-        symbol: selectedSymbol,
-        interval: selectedInterval,
+        symbol,
+        interval,
         limit: 500,
       })
       .then((response) => {
@@ -142,7 +147,7 @@ export function PriceChart() {
         const chartCandles = response.items.map(candleToChartCandle);
         // Sort ascending by time — backend may return DESC order
         chartCandles.sort((a, b) => a.time - b.time);
-        setCandlesForKey(candleKey(selectedSymbol, selectedInterval), chartCandles);
+        setCandlesForKey(candleKey(symbol, interval), chartCandles);
         dispatch({ type: "success" });
       })
       .catch((error: unknown) => {
@@ -154,7 +159,7 @@ export function PriceChart() {
     return () => {
       isCancelled = true;
     };
-  }, [selectedSymbol, selectedInterval, setCandlesForKey]);
+  }, [symbol, interval, setCandlesForKey]);
 
   // Push candle data to chart whenever the store slice changes
   useEffect(() => {
@@ -185,8 +190,8 @@ export function PriceChart() {
 
     const markers: SeriesMarker<Time>[] = [];
 
-    const symbolOpenPositions = openPositions.filter((p) => p.symbol === selectedSymbol);
-    const symbolClosedPositions = closedPositions.filter((p) => p.symbol === selectedSymbol);
+    const symbolOpenPositions = openPositions.filter((p) => p.symbol === symbol);
+    const symbolClosedPositions = closedPositions.filter((p) => p.symbol === symbol);
 
     // Entry markers for open positions: yellow down arrow above bar
     for (const position of symbolOpenPositions) {
@@ -249,13 +254,13 @@ export function PriceChart() {
     markers.sort((a, b) => (a.time as number) - (b.time as number));
 
     markersApiRef.current.setMarkers(markers);
-  }, [openPositions, closedPositions, selectedSymbol]);
+  }, [openPositions, closedPositions, symbol]);
 
   return (
     <div className="price-chart">
       <div className="price-chart-controls">
-        <SymbolSelector />
-        <IntervalButtons />
+        <SymbolSelector symbol={symbol} onSymbolChange={setSymbol} />
+        <IntervalButtons interval={interval} onIntervalChange={setInterval} />
       </div>
       <div className="price-chart-container" ref={containerRef}>
         {isLoading && <div className="price-chart-overlay">Loading…</div>}

@@ -20,7 +20,7 @@ export function PolymarketView() {
 
       <main className="dashboard-content">
         <Routes>
-          <Route path="chart" element={<PriceChart />} />
+          <Route path="chart" element={<PriceChart exchange="polymarket" />} />
           <Route path="overview" element={<PolymarketOverview />} />
           <Route path="decisions" element={<DecisionLog />} />
           <Route path="*" element={<Navigate to="/polymarket/chart" replace />} />

@@ -1,23 +1,24 @@
-import { useDashboardStore } from "../../store";
 import type { TradingSymbol } from "../../types";
 import "./SymbolSelector.css";
 
 const AVAILABLE_SYMBOLS: TradingSymbol[] = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT"];
 
-export function SymbolSelector() {
-  const selectedSymbol = useDashboardStore((state) => state.selectedSymbol);
-  const setSelectedSymbol = useDashboardStore((state) => state.setSelectedSymbol);
+interface SymbolSelectorProps {
+  symbol: TradingSymbol;
+  onSymbolChange: (symbol: TradingSymbol) => void;
+}
 
+export function SymbolSelector({ symbol, onSymbolChange }: SymbolSelectorProps) {
   return (
     <label className="symbol-selector">
       <span className="symbol-selector-label">Symbol</span>
       <select
         className="symbol-selector-select"
-        value={selectedSymbol}
-        onChange={(event) => setSelectedSymbol(event.target.value as TradingSymbol)}
+        value={symbol}
+        onChange={(event) => onSymbolChange(event.target.value as TradingSymbol)}
       >
-        {AVAILABLE_SYMBOLS.map((symbol) => (
-          <option key={symbol} value={symbol}>{symbol}</option>
+        {AVAILABLE_SYMBOLS.map((s) => (
+          <option key={s} value={s}>{s}</option>
         ))}
       </select>
     </label>
