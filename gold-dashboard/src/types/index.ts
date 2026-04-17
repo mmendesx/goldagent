@@ -22,12 +22,21 @@ export interface ChartCandle {
   volume: number;
 }
 
-export interface PaginatedResponse<T> {
+export interface Paginated<T> {
   items: T[];
   limit: number;
   offset: number;
   count: number;
   hasMore: boolean;
+}
+
+/** @deprecated Use `Paginated<T>` instead */
+export type PaginatedResponse<T> = Paginated<T>;
+
+export interface TickerUpdate {
+  symbol: string;
+  price: string;
+  timestamp: string;
 }
 
 export interface Position {

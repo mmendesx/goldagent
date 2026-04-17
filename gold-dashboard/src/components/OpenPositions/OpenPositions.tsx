@@ -18,7 +18,13 @@ export function OpenPositions() {
       try {
         const positions = await restClient.fetchOpenPositions();
         if (!isCancelled) {
-          setOpenPositions(positions ?? []);
+          setOpenPositions(
+            (positions ?? []).map((p) => ({
+              ...p,
+              currentPrice: p.entryPrice,
+              unrealizedPnl: "0",
+            })),
+          );
         }
       } catch (error) {
         console.warn("Failed to refresh open positions", error);

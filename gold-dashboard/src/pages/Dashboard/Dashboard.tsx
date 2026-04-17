@@ -27,7 +27,15 @@ export function Dashboard() {
   useEffect(() => {
     restClient
       .fetchOpenPositions()
-      .then((positions) => setOpenPositions(positions ?? []))
+      .then((positions) =>
+        setOpenPositions(
+          (positions ?? []).map((p) => ({
+            ...p,
+            currentPrice: p.entryPrice,
+            unrealizedPnl: "0",
+          })),
+        ),
+      )
       .catch((error) => console.warn("Failed to fetch open positions", error));
   }, [setOpenPositions]);
 

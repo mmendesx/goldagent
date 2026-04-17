@@ -10,6 +10,7 @@ export function useWebSocketLifecycle(): void {
   const removeOpenPosition = useDashboardStore((s) => s.removeOpenPosition);
   const setMetrics = useDashboardStore((s) => s.setMetrics);
   const prependDecision = useDashboardStore((s) => s.prependDecision);
+  const setTicker = useDashboardStore((s) => s.setTicker);
 
   useEffect(() => {
     const unsubscribeState = webSocketClient.onConnectionStateChange((state) => {
@@ -47,6 +48,11 @@ export function useWebSocketLifecycle(): void {
           prependDecision(message.payload);
           break;
         }
+        case "ticker_update": {
+          const { symbol, price, timestamp } = message.payload;
+          setTicker(symbol, parseFloat(price), timestamp);
+          break;
+        }
       }
     });
 
@@ -64,5 +70,6 @@ export function useWebSocketLifecycle(): void {
     removeOpenPosition,
     setMetrics,
     prependDecision,
+    setTicker,
   ]);
 }

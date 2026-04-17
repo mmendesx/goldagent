@@ -4,7 +4,7 @@ import type {
   TradeRecord,
   Decision,
   PortfolioMetrics,
-  PaginatedResponse,
+  Paginated,
   ExchangeBalances,
 } from "../types";
 
@@ -45,7 +45,7 @@ export interface CandleQueryParams {
 export const restClient = {
   async fetchCandles(
     params: CandleQueryParams,
-  ): Promise<PaginatedResponse<Candle & { indicator?: unknown }>> {
+  ): Promise<Paginated<Candle & { indicator?: unknown }>> {
     const queryParams: Record<string, string | number> = {
       symbol: params.symbol,
       interval: params.interval,
@@ -57,21 +57,32 @@ export const restClient = {
     return request("/api/v1/candles", queryParams);
   },
 
-  async fetchOpenPositions(): Promise<
-    (Position & { currentPrice: string; unrealizedPnl: string })[]
-  > {
+  async fetchOpenPositions(): Promise<Position[]> {
     return request("/api/v1/positions");
   },
 
-  async fetchClosedPositions(limit = 100, offset = 0): Promise<PaginatedResponse<Position>> {
+  async fetchClosedPositions(limit = 100, offset = 0): Promise<Paginated<Position>> {
     return request("/api/v1/positions/history", { limit, offset });
+  },
+
+  async fetchPositionsHistory(params?: {
+    symbol?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<Paginated<Position>> {
+    const queryParams: Record<string, string | number> = {
+      limit: params?.limit ?? 100,
+      offset: params?.offset ?? 0,
+    };
+    if (params?.symbol !== undefined) queryParams.symbol = params.symbol;
+    return request("/api/v1/positions/history", queryParams);
   },
 
   async fetchTrades(
     symbol?: string,
     limit = 100,
     offset = 0,
-  ): Promise<PaginatedResponse<TradeRecord>> {
+  ): Promise<Paginated<TradeRecord>> {
     const params: Record<string, string | number> = { limit, offset };
     if (symbol) params.symbol = symbol;
     return request("/api/v1/trades", params);
@@ -85,7 +96,7 @@ export const restClient = {
     symbol?: string,
     limit = 100,
     offset = 0,
-  ): Promise<PaginatedResponse<Decision>> {
+  ): Promise<Paginated<Decision>> {
     const params: Record<string, string | number> = { limit, offset };
     if (symbol) params.symbol = symbol;
     return request("/api/v1/decisions", params);

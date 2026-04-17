@@ -58,6 +58,10 @@ interface DashboardState {
   // Exchange balances (polled)
   exchangeBalances: ExchangeBalances | null;
   setExchangeBalances: (balances: ExchangeBalances) => void;
+
+  // Live ticker prices — keyed by symbol
+  tickersBySymbol: Record<string, { price: number; timestamp: string }>;
+  setTicker: (symbol: string, price: number, timestamp: string) => void;
 }
 
 export const candleKey = (symbol: string, interval: string): string => `${symbol}:${interval}`;
@@ -132,4 +136,10 @@ export const useDashboardStore = create<DashboardState>((set) => ({
 
   exchangeBalances: null,
   setExchangeBalances: (balances) => set({ exchangeBalances: balances }),
+
+  tickersBySymbol: {},
+  setTicker: (symbol, price, timestamp) =>
+    set((state) => ({
+      tickersBySymbol: { ...state.tickersBySymbol, [symbol]: { price, timestamp } },
+    })),
 }));
