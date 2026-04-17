@@ -1,16 +1,14 @@
 """
-LLM prompt definitions for the gold-agent decision engine.
+LLM prompt definitions for the gold-agent decision engine (OpenAI).
 
 Exports:
-    SYSTEM_PROMPT_TEXT      — raw system prompt string
-    SYSTEM_PROMPT_CACHED    — Anthropic content-block list with prompt-cache control
-    format_user_message     — serialize a context dict to a compact JSON string
-    build_messages          — build the messages list for the Anthropic API call
+    SYSTEM_PROMPT_TEXT   — raw system prompt string
+    format_user_message  — serialize a context dict to compact JSON
+    build_messages       — build the OpenAI chat messages list
 """
 
 import json
 
-# System prompt content — defines agent role, capabilities, output schema, risk constraints
 SYSTEM_PROMPT_TEXT = """You are a professional cryptocurrency trading agent with deep expertise in technical analysis. You receive real-time market data and must decide whether to place a book (limit) order, hold, or signal an exit.
 
 You have access to:
@@ -43,8 +41,8 @@ You MUST respond with ONLY valid JSON — no markdown, no explanation outside th
 ## Risk constraints (you must enforce these)
 
 - Confidence > 80 requires strong confluence from at least 3 independent indicators
-- suggested_stop_loss must be within 2× ATR of the suggested_entry price
-- suggested_take_profit must yield a risk/reward ratio ≥ 1.5
+- suggested_stop_loss must be within 2x ATR of the suggested_entry price
+- suggested_take_profit must yield a risk/reward ratio >= 1.5
 - If circuit_breaker is active in portfolio context, ALWAYS return HOLD
 - If open_position_count >= max_positions in context, avoid BUY recommendations
 - Use null for suggested_entry/take_profit/stop_loss when action is HOLD
@@ -54,35 +52,17 @@ You MUST respond with ONLY valid JSON — no markdown, no explanation outside th
 Return price values with the same decimal precision as the current_price in the context."""
 
 
-# Anthropic prompt caching: the system prompt is marked as ephemeral
-# so the cache is reused across calls within the 5-minute TTL window.
-# This dramatically reduces token costs on every candle close.
-SYSTEM_PROMPT_CACHED = [
-    {
-        "type": "text",
-        "text": SYSTEM_PROMPT_TEXT,
-        "cache_control": {"type": "ephemeral"},
-    }
-]
-
-
 def format_user_message(context: dict) -> str:
-    """
-    Serialize the context payload to a compact JSON string for the user message.
-    Numbers are serialized with limited decimal places to keep token count down.
-    """
+    """Serialize context to compact JSON for the user message."""
     return json.dumps(context, separators=(",", ":"), default=str)
 
 
 def build_messages(context: dict) -> list[dict]:
     """
-    Build the messages list for the Anthropic API call.
-    Returns [{"role": "user", "content": <formatted context>}].
-    The system prompt is passed separately to the API call.
+    Build the OpenAI chat messages list.
+    Returns [system_message, user_message].
     """
     return [
-        {
-            "role": "user",
-            "content": format_user_message(context),
-        }
+        {"role": "system", "content": SYSTEM_PROMPT_TEXT},
+        {"role": "user", "content": format_user_message(context)},
     ]

@@ -1,7 +1,7 @@
 """
 LLM-backed decision engine for the gold-agent trading pipeline.
 
-Submits a market context dict to Claude with a cached system prompt,
+Submits a market context dict to an OpenAI-compatible model,
 parses the JSON response into a Decision, persists it, and returns it.
 On any failure — network error, malformed JSON, validation error — returns
 a HOLD decision with confidence=0. Never raises from evaluate().
@@ -12,12 +12,12 @@ import json
 import logging
 from datetime import datetime, timezone
 
-import anthropic
+from openai import OpenAI
 from pydantic import ValidationError
 
 from gold_agent.config import settings
 from gold_agent.domain.types import Decision, DecisionAction, LLMDecisionResponse
-from gold_agent.engine.prompts import SYSTEM_PROMPT_CACHED, build_messages
+from gold_agent.engine.prompts import build_messages
 from gold_agent.storage import postgres
 
 logger = logging.getLogger(__name__)
@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 class LLMDecisionEngine:
     def __init__(self) -> None:
-        self._client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+        self._client = OpenAI(api_key=settings.openai_api_key)
         self._model = settings.gold_llm_model
 
     async def evaluate(
@@ -35,7 +35,7 @@ class LLMDecisionEngine:
         is_dry_run: bool = False,
     ) -> Decision:
         """
-        Submit context to Claude, parse response, persist decision.
+        Submit context to OpenAI, parse response, persist decision.
 
         On any failure (network, parse, validation), returns a HOLD decision
         with confidence=0. Never raises.
@@ -60,17 +60,17 @@ class LLMDecisionEngine:
         symbol: str,
         is_dry_run: bool,
     ) -> Decision:
-        """Call the Anthropic API and return a parsed Decision. Returns HOLD on any error."""
+        """Call the OpenAI API and return a parsed Decision. Returns HOLD on any error."""
         try:
             response = await asyncio.to_thread(
-                self._client.messages.create,
+                self._client.chat.completions.create,
                 model=self._model,
                 max_tokens=512,
-                system=SYSTEM_PROMPT_CACHED,
                 messages=build_messages(context),
+                response_format={"type": "json_object"},
             )
 
-            raw_text = response.content[0].text
+            raw_text = response.choices[0].message.content
             logger.debug(
                 "llm response received",
                 extra={"symbol": symbol, "preview": raw_text[:200]},

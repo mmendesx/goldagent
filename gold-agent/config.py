@@ -42,8 +42,8 @@ class Settings(BaseSettings):
     gold_redis_url: str
 
     # LLM
-    anthropic_api_key: str = ""
-    gold_llm_model: str = "claude-sonnet-4-6"
+    openai_api_key: str = ""
+    gold_llm_model: str = "gpt-4.1-nano"
     gold_llm_context_candles: int = 50
 
     @field_validator("gold_symbols", mode="before")
