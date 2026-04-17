@@ -1,4 +1,5 @@
 export * from './tickBuffer';
+export * from './chartSeriesRegistry';
 
 export function formatCurrency(value: string | number, decimals = 2): string {
   const numeric = typeof value === "string" ? parseFloat(value) : value;

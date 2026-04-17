@@ -21,7 +21,7 @@ export function OpenPositions() {
           setOpenPositions(positions ?? []);
         }
       } catch (error) {
-        console.warn("Failed to refresh open positions", error);
+        if (!isCancelled) console.warn("Failed to refresh open positions", error);
       }
     }
 

@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { webSocketClient } from "../api";
 import { useDashboardStore, candleKey, candleToChartCandle } from "../store";
-import { TickBuffer } from "../utils";
+import { TickBuffer, chartSeriesRegistry } from "../utils";
 import type { WebSocketMessage } from "../types";
 
 export function useWebSocketLifecycle(): void {
@@ -16,7 +16,10 @@ export function useWebSocketLifecycle(): void {
   useEffect(() => {
     const tickBuffer = new TickBuffer((candleUpdates, priceUpdates) => {
       for (const [key, candle] of candleUpdates) {
+        // Always keep the store in sync for cache consistency
         appendOrUpdateCandle(key, candle);
+        // Also imperatively update the visible series when key matches — bypasses React re-render
+        chartSeriesRegistry.tryUpdate(key, candle);
       }
       for (const [symbol, { price, time }] of priceUpdates) {
         setLastPrice(symbol, price, time);

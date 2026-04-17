@@ -12,6 +12,7 @@ import {
   ColorType,
 } from "lightweight-charts";
 import { useDashboardStore, candleKey, candleToChartCandle } from "../../store";
+import { chartSeriesRegistry } from "../../utils";
 import { useChartSelection } from "../../hooks/useChartSelection";
 import type { Exchange } from "../../hooks/useChartSelection";
 import { restClient } from "../../api";
@@ -112,6 +113,7 @@ export function PriceChart({ exchange }: PriceChartProps) {
     markersApiRef.current = markersApi;
 
     return () => {
+      chartSeriesRegistry.unregister();
       markersApi.detach();
       chart.remove();
       chartRef.current = null;
@@ -120,6 +122,13 @@ export function PriceChart({ exchange }: PriceChartProps) {
       markersApiRef.current = null;
     };
   }, []);
+
+  // Keep registry in sync when the active key changes (symbol or interval switch)
+  useEffect(() => {
+    if (candlestickSeriesRef.current) {
+      chartSeriesRegistry.register(activeKey, candlestickSeriesRef.current);
+    }
+  }, [activeKey]);
 
   // Fetch historical candles when symbol or interval changes
   useEffect(() => {
