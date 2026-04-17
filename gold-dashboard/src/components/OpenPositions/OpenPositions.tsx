@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useDashboardStore } from "../../store";
+import { useDashboardStore, selectOpenPositionsWithLivePnl } from "../../store";
 import { restClient } from "../../api";
 import { formatPrice } from "../../utils";
 import "./OpenPositions.css";
@@ -7,7 +7,7 @@ import "./OpenPositions.css";
 const REFRESH_INTERVAL_MILLISECONDS = 3000;
 
 export function OpenPositions() {
-  const openPositions = useDashboardStore((state) => state.openPositions);
+  const openPositions = useDashboardStore(selectOpenPositionsWithLivePnl);
   const setOpenPositions = useDashboardStore((state) => state.setOpenPositions);
 
   // Periodic refetch for live P&L (WebSocket doesn't send price ticks)

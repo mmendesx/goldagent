@@ -1,17 +1,28 @@
 import { useEffect } from "react";
 import { webSocketClient } from "../api";
 import { useDashboardStore, candleKey, candleToChartCandle } from "../store";
+import { TickBuffer } from "../utils";
 import type { WebSocketMessage } from "../types";
 
 export function useWebSocketLifecycle(): void {
   const setConnectionState = useDashboardStore((s) => s.setConnectionState);
   const appendOrUpdateCandle = useDashboardStore((s) => s.appendOrUpdateCandle);
+  const setLastPrice = useDashboardStore((s) => s.setLastPrice);
   const upsertOpenPosition = useDashboardStore((s) => s.upsertOpenPosition);
   const removeOpenPosition = useDashboardStore((s) => s.removeOpenPosition);
   const setMetrics = useDashboardStore((s) => s.setMetrics);
   const prependDecision = useDashboardStore((s) => s.prependDecision);
 
   useEffect(() => {
+    const tickBuffer = new TickBuffer((candleUpdates, priceUpdates) => {
+      for (const [key, candle] of candleUpdates) {
+        appendOrUpdateCandle(key, candle);
+      }
+      for (const [symbol, { price, time }] of priceUpdates) {
+        setLastPrice(symbol, price, time);
+      }
+    });
+
     const unsubscribeState = webSocketClient.onConnectionStateChange((state) => {
       setConnectionState(state);
     });
@@ -21,7 +32,9 @@ export function useWebSocketLifecycle(): void {
         case "candle_update": {
           const candle = message.payload;
           const key = candleKey(candle.symbol, candle.interval);
-          appendOrUpdateCandle(key, candleToChartCandle(candle));
+          const chartCandle = candleToChartCandle(candle);
+          tickBuffer.pushCandle(key, chartCandle);
+          tickBuffer.pushPrice(candle.symbol, parseFloat(candle.closePrice), chartCandle.time);
           break;
         }
         case "trade_executed":
@@ -55,11 +68,13 @@ export function useWebSocketLifecycle(): void {
     return () => {
       unsubscribeMessage();
       unsubscribeState();
+      tickBuffer.destroy();
       webSocketClient.disconnect();
     };
   }, [
     setConnectionState,
     appendOrUpdateCandle,
+    setLastPrice,
     upsertOpenPosition,
     removeOpenPosition,
     setMetrics,

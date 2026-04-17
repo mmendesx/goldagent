@@ -21,7 +21,7 @@ interface ChartSelectionEntry {
   interval: ChartInterval;
 }
 
-interface DashboardState {
+export interface DashboardState {
   // Connection state
   connectionState: "connecting" | "open" | "closed" | "reconnecting";
   setConnectionState: (state: DashboardState["connectionState"]) => void;
@@ -44,6 +44,9 @@ interface DashboardState {
   candlesByKey: Record<string, ChartCandle[]>;
   setCandlesForKey: (key: string, candles: ChartCandle[]) => void;
   appendOrUpdateCandle: (key: string, candle: ChartCandle) => void;
+  candleLoading: Record<string, boolean>;
+  setCandleLoading: (key: string, loading: boolean) => void;
+  clearCandles: (key: string) => void;
 
   // Open positions (with live data)
   openPositions: OpenPositionWithLive[];
@@ -111,6 +114,15 @@ export const useDashboardStore = create<DashboardState>((set) => ({
   candlesByKey: {},
   setCandlesForKey: (key, candles) =>
     set((state) => ({ candlesByKey: { ...state.candlesByKey, [key]: candles } })),
+  candleLoading: {},
+  setCandleLoading: (key, loading) =>
+    set((state) => ({ candleLoading: { ...state.candleLoading, [key]: loading } })),
+  clearCandles: (key) =>
+    set((state) => {
+      const next = { ...state.candlesByKey };
+      delete next[key];
+      return { candlesByKey: next };
+    }),
   appendOrUpdateCandle: (key, candle) =>
     set((state) => {
       const existing = state.candlesByKey[key] ?? [];
@@ -159,3 +171,22 @@ export const useDashboardStore = create<DashboardState>((set) => ({
   exchangeBalances: null,
   setExchangeBalances: (balances) => set({ exchangeBalances: balances }),
 }));
+
+export function selectOpenPositionsWithLivePnl(state: DashboardState) {
+  return state.openPositions.map((position) => {
+    const lastTick = state.lastPrice[position.symbol];
+    if (!lastTick) return position;
+
+    const lastPrice = lastTick.price;
+    const entryPrice = parseFloat(position.entryPrice);
+    const quantity = parseFloat(position.quantity);
+    const sideMultiplier = position.side === "LONG" ? 1 : -1;
+    const pnl = (lastPrice - entryPrice) * quantity * sideMultiplier;
+
+    return {
+      ...position,
+      currentPrice: String(lastPrice),
+      unrealizedPnl: String(pnl.toFixed(4)),
+    };
+  });
+}

@@ -1,4 +1,4 @@
-import { useEffect, useReducer, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   createChart,
   createSeriesMarkers,
@@ -22,20 +22,6 @@ import "./PriceChart.css";
 
 const EMPTY_CANDLES: ChartCandle[] = [];
 
-type FetchState = { isLoading: boolean; errorMessage: string | null };
-type FetchAction =
-  | { type: "start" }
-  | { type: "success" }
-  | { type: "error"; message: string };
-
-function fetchReducer(_state: FetchState, action: FetchAction): FetchState {
-  switch (action.type) {
-    case "start": return { isLoading: true, errorMessage: null };
-    case "success": return { isLoading: false, errorMessage: null };
-    case "error": return { isLoading: false, errorMessage: action.message };
-  }
-}
-
 // Dark theme colors matching the dashboard design system
 const CHART_THEME = {
   background: "#12121a",
@@ -58,15 +44,19 @@ export function PriceChart({ exchange }: PriceChartProps) {
   const candlestickSeriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const volumeSeriesRef = useRef<ISeriesApi<"Histogram"> | null>(null);
   const markersApiRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
-  const [{ isLoading, errorMessage }, dispatch] = useReducer(fetchReducer, { isLoading: true, errorMessage: null });
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const { symbol, interval, setSymbol, setInterval } = useChartSelection(exchange);
   const setCandlesForKey = useDashboardStore((state) => state.setCandlesForKey);
+  const setCandleLoading = useDashboardStore((state) => state.setCandleLoading);
+  const clearCandles = useDashboardStore((state) => state.clearCandles);
   const openPositions = useDashboardStore((state) => state.openPositions);
   const closedPositions = useDashboardStore((state) => state.closedPositions);
 
-  const key = candleKey(symbol, interval);
-  const candles = useDashboardStore((state) => state.candlesByKey[key]) ?? EMPTY_CANDLES;
+  const activeKey = candleKey(symbol, interval);
+  const candles = useDashboardStore((state) => state.candlesByKey[activeKey]) ?? EMPTY_CANDLES;
+  const candleLoading = useDashboardStore((s) => s.candleLoading);
+  const isKeyLoading = candleLoading[activeKey] ?? false;
 
   // Initialize chart once — empty deps so this runs only on mount
   useEffect(() => {
@@ -134,7 +124,11 @@ export function PriceChart({ exchange }: PriceChartProps) {
   // Fetch historical candles when symbol or interval changes
   useEffect(() => {
     let isCancelled = false;
-    dispatch({ type: "start" });
+    const fetchKey = candleKey(symbol, interval);
+
+    clearCandles(fetchKey);
+    setCandleLoading(fetchKey, true);
+    setErrorMessage(null);
 
     restClient
       .fetchCandles({
@@ -147,19 +141,20 @@ export function PriceChart({ exchange }: PriceChartProps) {
         const chartCandles = response.items.map(candleToChartCandle);
         // Sort ascending by time — backend may return DESC order
         chartCandles.sort((a, b) => a.time - b.time);
-        setCandlesForKey(candleKey(symbol, interval), chartCandles);
-        dispatch({ type: "success" });
+        setCandlesForKey(fetchKey, chartCandles);
+        setCandleLoading(fetchKey, false);
       })
       .catch((error: unknown) => {
         if (isCancelled) return;
+        setCandleLoading(fetchKey, false);
         const message = error instanceof Error ? error.message : "Failed to load candles";
-        dispatch({ type: "error", message });
+        setErrorMessage(message);
       });
 
     return () => {
       isCancelled = true;
     };
-  }, [symbol, interval, setCandlesForKey]);
+  }, [symbol, interval, setCandlesForKey, setCandleLoading, clearCandles]);
 
   // Push candle data to chart whenever the store slice changes
   useEffect(() => {
@@ -184,19 +179,14 @@ export function PriceChart({ exchange }: PriceChartProps) {
     volumeSeriesRef.current.setData(volumeData);
   }, [candles]);
 
-  // Rebuild trade markers whenever positions or selected symbol change
-  useEffect(() => {
-    if (!markersApiRef.current) return;
-
-    const markers: SeriesMarker<Time>[] = [];
-
-    const symbolOpenPositions = openPositions.filter((p) => p.symbol === symbol);
-    const symbolClosedPositions = closedPositions.filter((p) => p.symbol === symbol);
+  // Build marker array — only recomputed when positions or symbol change
+  const markers = useMemo<SeriesMarker<Time>[]>(() => {
+    const result: SeriesMarker<Time>[] = [];
 
     // Entry markers for open positions: yellow down arrow above bar
-    for (const position of symbolOpenPositions) {
+    for (const position of openPositions.filter((p) => p.symbol === symbol)) {
       const openedAtTime = Math.floor(new Date(position.openedAt).getTime() / 1000) as Time;
-      markers.push({
+      result.push({
         time: openedAtTime,
         position: "aboveBar",
         color: "#eab308",
@@ -206,11 +196,11 @@ export function PriceChart({ exchange }: PriceChartProps) {
     }
 
     // Entry + exit markers for closed positions
-    for (const position of symbolClosedPositions) {
+    for (const position of closedPositions.filter((p) => p.symbol === symbol)) {
       const openedAtTime = Math.floor(new Date(position.openedAt).getTime() / 1000) as Time;
 
       // Entry — red down arrow labeled SHORT
-      markers.push({
+      result.push({
         time: openedAtTime,
         position: "aboveBar",
         color: "#ef4444",
@@ -223,7 +213,7 @@ export function PriceChart({ exchange }: PriceChartProps) {
         const closedAtTime = Math.floor(new Date(position.closedAt).getTime() / 1000) as Time;
 
         if (position.closeReason === "TAKE_PROFIT") {
-          markers.push({
+          result.push({
             time: closedAtTime,
             position: "belowBar",
             color: "#22c55e",
@@ -231,7 +221,7 @@ export function PriceChart({ exchange }: PriceChartProps) {
             text: "▲ TAKE_PROFIT",
           });
         } else if (position.closeReason === "STOP_LOSS") {
-          markers.push({
+          result.push({
             time: closedAtTime,
             position: "aboveBar",
             color: "#ef4444",
@@ -239,7 +229,7 @@ export function PriceChart({ exchange }: PriceChartProps) {
             text: "● STOP_LOSS",
           });
         } else if (position.closeReason === "TRAILING_STOP") {
-          markers.push({
+          result.push({
             time: closedAtTime,
             position: "aboveBar",
             color: "#ef4444",
@@ -251,10 +241,15 @@ export function PriceChart({ exchange }: PriceChartProps) {
     }
 
     // lightweight-charts requires markers sorted ascending by time
-    markers.sort((a, b) => (a.time as number) - (b.time as number));
-
-    markersApiRef.current.setMarkers(markers);
+    result.sort((a, b) => (a.time as number) - (b.time as number));
+    return result;
   }, [openPositions, closedPositions, symbol]);
+
+  // Push stable markers reference to chart — only fires when markers change
+  useEffect(() => {
+    if (!markersApiRef.current) return;
+    markersApiRef.current.setMarkers(markers);
+  }, [markers]);
 
   return (
     <div className="price-chart">
@@ -263,8 +258,13 @@ export function PriceChart({ exchange }: PriceChartProps) {
         <IntervalButtons interval={interval} onIntervalChange={setInterval} />
       </div>
       <div className="price-chart-container" ref={containerRef}>
-        {isLoading && <div className="price-chart-overlay">Loading…</div>}
-        {errorMessage && (
+        {isKeyLoading && (
+          <div className="price-chart-overlay price-chart-loading">
+            <span className="price-chart-spinner" aria-hidden="true" />
+            Loading…
+          </div>
+        )}
+        {!isKeyLoading && errorMessage && (
           <div className="price-chart-overlay price-chart-error">{errorMessage}</div>
         )}
       </div>
