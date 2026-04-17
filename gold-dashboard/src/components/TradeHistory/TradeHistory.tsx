@@ -1,5 +1,6 @@
-import { useEffect, useReducer, useState } from "react";
+import { useState } from "react";
 import { restClient } from "../../api";
+import { useListFetch } from "../../hooks/useListFetch";
 import { formatPrice } from "../../utils";
 import type { Position, TradingSymbol } from "../../types";
 import "./TradeHistory.css";
@@ -7,49 +8,18 @@ import "./TradeHistory.css";
 const PAGE_SIZE = 50;
 const AVAILABLE_SYMBOLS: (TradingSymbol | "ALL")[] = ["ALL", "BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT"];
 
-type FetchState = { isLoading: boolean; errorMessage: string | null };
-type FetchAction =
-  | { type: "start" }
-  | { type: "success" }
-  | { type: "error"; message: string };
-
-function fetchReducer(_state: FetchState, action: FetchAction): FetchState {
-  switch (action.type) {
-    case "start": return { isLoading: true, errorMessage: null };
-    case "success": return { isLoading: false, errorMessage: null };
-    case "error": return { isLoading: false, errorMessage: action.message };
-  }
-}
-
 export function TradeHistory() {
-  const [positions, setPositions] = useState<Position[]>([]);
-  const [{ isLoading, errorMessage }, dispatch] = useReducer(fetchReducer, { isLoading: true, errorMessage: null });
   const [symbolFilter, setSymbolFilter] = useState<TradingSymbol | "ALL">("ALL");
   const [currentPage, setCurrentPage] = useState(0);
-  const [hasMore, setHasMore] = useState(false);
 
-  useEffect(() => {
-    let isCancelled = false;
-    dispatch({ type: "start" });
-
-    restClient
-      .fetchClosedPositions(PAGE_SIZE, currentPage * PAGE_SIZE)
-      .then((response) => {
-        if (isCancelled) return;
-        setPositions(response.items ?? []);
-        setHasMore(response.hasMore);
-        dispatch({ type: "success" });
-      })
-      .catch((error: unknown) => {
-        if (isCancelled) return;
-        const message = error instanceof Error ? error.message : "Failed to load trade history";
-        dispatch({ type: "error", message });
-      });
-
-    return () => {
-      isCancelled = true;
-    };
-  }, [currentPage]);
+  const fetchKey = `trades-${currentPage}-${symbolFilter}`;
+  const { data, error, loading, refetch } = useListFetch(
+    fetchKey,
+    () => restClient.fetchClosedPositions(PAGE_SIZE, currentPage * PAGE_SIZE),
+    [currentPage],
+  );
+  const positions = data?.items ?? [];
+  const hasMore = data?.hasMore ?? false;
 
   // Filter client-side by symbol (the backend endpoint for positions/history doesn't support symbol filter)
   const filteredPositions = symbolFilter === "ALL"
@@ -77,7 +47,7 @@ export function TradeHistory() {
             type="button"
             className="trade-history-page-button"
             onClick={() => setCurrentPage((page) => Math.max(0, page - 1))}
-            disabled={currentPage === 0 || isLoading}
+            disabled={currentPage === 0 || loading}
           >
             ← Previous
           </button>
@@ -86,26 +56,14 @@ export function TradeHistory() {
             type="button"
             className="trade-history-page-button"
             onClick={() => setCurrentPage((page) => page + 1)}
-            disabled={!hasMore || isLoading}
+            disabled={!hasMore || loading}
           >
             Next →
           </button>
         </div>
       </div>
 
-      {errorMessage && (
-        <div className="trade-history-error" role="alert">{errorMessage}</div>
-      )}
-
-      {isLoading && positions.length === 0 ? (
-        <div className="trade-history-empty">Loading…</div>
-      ) : filteredPositions.length === 0 ? (
-        <div className="trade-history-empty">
-          {symbolFilter === "ALL"
-            ? "No closed trades yet. History will appear after the first exit."
-            : `No closed trades for ${symbolFilter}.`}
-        </div>
-      ) : (
+      {positions.length > 0 && (
         <div className="trade-history-table-container">
           <table className="trade-history-table">
             <thead>
@@ -152,6 +110,25 @@ export function TradeHistory() {
               })}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {error && (
+        <div className="trade-history-error" role="alert">
+          <span>{error}</span>
+          <button type="button" onClick={refetch} className="trade-history-retry">Retry</button>
+        </div>
+      )}
+
+      {!error && loading && positions.length === 0 && (
+        <div className="trade-history-empty">Loading…</div>
+      )}
+
+      {!error && !loading && filteredPositions.length === 0 && (
+        <div className="trade-history-empty">
+          {symbolFilter === "ALL"
+            ? "No closed trades yet. History will appear after the first exit."
+            : `No closed trades for ${symbolFilter}.`}
         </div>
       )}
     </div>

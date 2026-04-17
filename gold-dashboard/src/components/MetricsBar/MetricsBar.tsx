@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useDashboardStore } from "../../store";
 import { formatCurrency, formatPercent, getDrawdownSeverity } from "../../utils";
 import { restClient } from "../../api";
@@ -12,15 +12,21 @@ export function MetricsBar() {
   const openPositionCount = useDashboardStore((state) => state.openPositions.length);
   const exchangeBalances = useDashboardStore((state) => state.exchangeBalances);
   const setExchangeBalances = useDashboardStore((state) => state.setExchangeBalances);
+  const [balanceError, setBalanceError] = useState<string | null>(null);
+
+  const fetchBalances = useCallback(() => {
+    restClient.fetchExchangeBalances()
+      .then((b) => { setExchangeBalances(b); setBalanceError(null); })
+      .catch((err: unknown) => {
+        setBalanceError(err instanceof Error ? err.message : "Failed to load balances");
+      });
+  }, [setExchangeBalances]);
 
   useEffect(() => {
-    const fetchBalances = () => {
-      restClient.fetchExchangeBalances().then(setExchangeBalances).catch(() => {});
-    };
     fetchBalances();
     const intervalId = setInterval(fetchBalances, EXCHANGE_BALANCE_POLL_MS);
     return () => clearInterval(intervalId);
-  }, [setExchangeBalances]);
+  }, [fetchBalances]);
 
   const balance = metrics?.balance ?? "0";
   const peakBalance = metrics?.peakBalance ?? "0";
@@ -81,6 +87,12 @@ export function MetricsBar() {
       {isCircuitBreakerActive && (
         <div className="circuit-breaker-alert" role="alert">
           ⚠ Circuit breaker active
+        </div>
+      )}
+      {balanceError && (
+        <div className="metrics-balance-error" role="alert" title={balanceError}>
+          Balance error
+          <button type="button" onClick={fetchBalances} style={{ marginLeft: 6, cursor: "pointer" }}>↺</button>
         </div>
       )}
     </section>

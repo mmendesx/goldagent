@@ -1,56 +1,30 @@
-import { useEffect, useReducer, useState } from "react";
+import { useEffect, useState } from "react";
 import { useDashboardStore } from "../../store";
 import { restClient } from "../../api";
+import { useListFetch } from "../../hooks/useListFetch";
 import type { Decision, TradingSymbol } from "../../types";
 import "./DecisionLog.css";
 
 const PAGE_SIZE = 100;
 const AVAILABLE_SYMBOLS: (TradingSymbol | "ALL")[] = ["ALL", "BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT"];
 
-type FetchState = { isLoading: boolean; errorMessage: string | null };
-type FetchAction =
-  | { type: "start" }
-  | { type: "success" }
-  | { type: "error"; message: string };
-
-function fetchReducer(_state: FetchState, action: FetchAction): FetchState {
-  switch (action.type) {
-    case "start": return { isLoading: true, errorMessage: null };
-    case "success": return { isLoading: false, errorMessage: null };
-    case "error": return { isLoading: false, errorMessage: action.message };
-  }
-}
-
 export function DecisionLog() {
   const decisions = useDashboardStore((state) => state.decisions);
   const setDecisions = useDashboardStore((state) => state.setDecisions);
-  const [{ isLoading, errorMessage }, dispatch] = useReducer(fetchReducer, { isLoading: true, errorMessage: null });
   const [symbolFilter, setSymbolFilter] = useState<TradingSymbol | "ALL">("ALL");
 
-  // Initial load from REST
+  const symbolParam = symbolFilter === "ALL" ? "" : symbolFilter;
+  const fetchKey = `decisions-${symbolParam}`;
+  const { data, error, loading, refetch } = useListFetch(
+    fetchKey,
+    () => restClient.fetchDecisions(symbolParam || undefined, PAGE_SIZE, 0),
+    [symbolFilter],
+  );
+
+  // Sync REST results into the store so live WS decisions augment the initial load
   useEffect(() => {
-    let isCancelled = false;
-    dispatch({ type: "start" });
-
-    const symbolParam = symbolFilter === "ALL" ? undefined : symbolFilter;
-
-    restClient
-      .fetchDecisions(symbolParam, PAGE_SIZE, 0)
-      .then((response) => {
-        if (isCancelled) return;
-        setDecisions(response.items ?? []);
-        dispatch({ type: "success" });
-      })
-      .catch((error: unknown) => {
-        if (isCancelled) return;
-        const message = error instanceof Error ? error.message : "Failed to load decisions";
-        dispatch({ type: "error", message });
-      });
-
-    return () => {
-      isCancelled = true;
-    };
-  }, [symbolFilter, setDecisions]);
+    if (data?.items) setDecisions(data.items);
+  }, [data, setDecisions]);
 
   // Filter live-updated decisions client-side by symbol
   const filteredDecisions = symbolFilter === "ALL"
@@ -77,17 +51,7 @@ export function DecisionLog() {
         </div>
       </div>
 
-      {errorMessage && (
-        <div className="decision-log-error" role="alert">{errorMessage}</div>
-      )}
-
-      {isLoading && filteredDecisions.length === 0 ? (
-        <div className="decision-log-empty">Loading…</div>
-      ) : filteredDecisions.length === 0 ? (
-        <div className="decision-log-empty">
-          No decisions yet. The engine logs every evaluation, including HOLDs.
-        </div>
-      ) : (
+      {filteredDecisions.length > 0 && (
         <div className="decision-log-table-container">
           <table className="decision-log-table">
             <thead>
@@ -107,6 +71,23 @@ export function DecisionLog() {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {error && (
+        <div className="decision-log-error" role="alert">
+          <span>{error}</span>
+          <button type="button" onClick={refetch} className="decision-log-retry">Retry</button>
+        </div>
+      )}
+
+      {!error && loading && filteredDecisions.length === 0 && (
+        <div className="decision-log-empty">Loading…</div>
+      )}
+
+      {!error && !loading && filteredDecisions.length === 0 && (
+        <div className="decision-log-empty">
+          No decisions yet. The engine logs every evaluation, including HOLDs.
         </div>
       )}
     </div>

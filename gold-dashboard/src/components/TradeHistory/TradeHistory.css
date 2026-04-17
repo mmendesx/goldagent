@@ -181,3 +181,14 @@
 .trade-history-table .pnl-positive { color: var(--color-positive); font-weight: 600; }
 .trade-history-table .pnl-negative { color: var(--color-negative); font-weight: 600; }
 .trade-history-table .pnl-neutral { color: var(--color-text-secondary); }
+
+.trade-history-retry {
+  margin-left: 12px;
+  padding: 3px 10px;
+  background: rgba(239,68,68,0.15);
+  border: 1px solid rgba(239,68,68,0.3);
+  border-radius: 4px;
+  color: #fca5a5;
+  cursor: pointer;
+  font-size: 0.75rem;
+}
