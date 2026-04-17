@@ -211,9 +211,12 @@ export function selectChartIndicators(key: string) {
     state.chartIndicators[key] ?? DEFAULT_INDICATOR_SETTINGS;
 }
 
-export function selectOpenPositionsWithLivePnl(state: DashboardState) {
-  return state.openPositions.map((position) => {
-    const lastTick = state.lastPrice[position.symbol];
+export function computeOpenPositionsWithLivePnl(
+  openPositions: OpenPositionWithLive[],
+  lastPriceMap: Record<string, { price: number; time: number }>
+): OpenPositionWithLive[] {
+  return openPositions.map((position) => {
+    const lastTick = lastPriceMap[position.symbol];
     if (!lastTick) return position;
 
     const lastPrice = lastTick.price;
@@ -228,4 +231,9 @@ export function selectOpenPositionsWithLivePnl(state: DashboardState) {
       unrealizedPnl: String(pnl.toFixed(4)),
     };
   });
+}
+
+/** @deprecated use computeOpenPositionsWithLivePnl with useMemo to avoid unstable snapshots */
+export function selectOpenPositionsWithLivePnl(state: DashboardState) {
+  return computeOpenPositionsWithLivePnl(state.openPositions, state.lastPrice);
 }

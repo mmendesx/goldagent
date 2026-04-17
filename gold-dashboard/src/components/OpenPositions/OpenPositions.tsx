@@ -1,5 +1,5 @@
-import { useEffect } from "react";
-import { useDashboardStore, selectOpenPositionsWithLivePnl } from "../../store";
+import { useEffect, useMemo } from "react";
+import { useDashboardStore, computeOpenPositionsWithLivePnl } from "../../store";
 import { restClient } from "../../api";
 import { formatPrice } from "../../utils";
 import "./OpenPositions.css";
@@ -7,8 +7,14 @@ import "./OpenPositions.css";
 const REFRESH_INTERVAL_MILLISECONDS = 3000;
 
 export function OpenPositions() {
-  const openPositions = useDashboardStore(selectOpenPositionsWithLivePnl);
+  const rawOpenPositions = useDashboardStore((s) => s.openPositions);
+  const lastPrice = useDashboardStore((s) => s.lastPrice);
   const setOpenPositions = useDashboardStore((state) => state.setOpenPositions);
+
+  const openPositions = useMemo(
+    () => computeOpenPositionsWithLivePnl(rawOpenPositions, lastPrice),
+    [rawOpenPositions, lastPrice]
+  );
 
   // Periodic refetch for live P&L (WebSocket doesn't send price ticks)
   useEffect(() => {
