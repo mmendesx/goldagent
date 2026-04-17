@@ -117,6 +117,9 @@ CREATE TABLE IF NOT EXISTS decisions (
 CREATE INDEX IF NOT EXISTS decisions_symbol_created_at_idx
     ON decisions (symbol, created_at DESC);
 
+-- Drift correction: ensure reasoning column exists on pre-existing DBs
+ALTER TABLE decisions ADD COLUMN IF NOT EXISTS reasoning TEXT;
+
 -- ---------------------------------------------------------------------------
 -- positions
 -- ---------------------------------------------------------------------------

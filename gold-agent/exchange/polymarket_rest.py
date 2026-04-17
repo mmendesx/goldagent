@@ -55,6 +55,8 @@ class PolymarketRestClient:
     ) -> None:
         self._configured = bool(api_key and api_secret and passphrase and private_key)
         self._wallet_address = wallet_address
+        # Circuit breaker: once auth fails, stop hammering the API until restart.
+        self._auth_failed = False
 
         if self._configured:
             creds = ApiCreds(
@@ -77,9 +79,16 @@ class PolymarketRestClient:
             - ``status="not_configured"`` when credentials or private key are absent.
             - ``status="ok"`` and the USDC balance string on success.
             - ``status="error"`` if the API call fails.
+
+        On persistent auth failure (401) the client trips an in-memory circuit
+        breaker so subsequent polls short-circuit without hitting the network.
+        Restart the process to re-test credentials.
         """
         if not self._configured:
             return ExchangeBalance(balance="0", status=ExchangeBalanceStatus.NOT_CONFIGURED)
+
+        if self._auth_failed:
+            return ExchangeBalance(balance="0", status=ExchangeBalanceStatus.ERROR)
 
         try:
             result = await asyncio.to_thread(
@@ -87,9 +96,20 @@ class PolymarketRestClient:
                 params=BalanceAllowanceParams(asset_type=AssetType.COLLATERAL),
             )
         except Exception as exc:
-            logger.error(
-                "PolymarketRestClient.fetch_usdc_balance: API call failed: %s", exc
-            )
+            # Detect 401/unauthorized once and latch — don't spam logs every poll.
+            msg = str(exc)
+            if "401" in msg or "Unauthorized" in msg or "Invalid api key" in msg:
+                if not self._auth_failed:
+                    logger.error(
+                        "PolymarketRestClient: auth failed (invalid api key). "
+                        "Disabling balance polling until restart. Error: %s",
+                        exc,
+                    )
+                self._auth_failed = True
+            else:
+                logger.error(
+                    "PolymarketRestClient.fetch_usdc_balance: API call failed: %s", exc
+                )
             return ExchangeBalance(balance="0", status=ExchangeBalanceStatus.ERROR)
 
         balance = result.get("balance", "0") if result else "0"

@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime
+from pathlib import Path
 from typing import Optional
 
 import asyncpg
@@ -44,7 +45,11 @@ _pool: asyncpg.Pool | None = None
 
 
 async def create_pool() -> asyncpg.Pool:
-    """Create and store the global asyncpg connection pool."""
+    """Create and store the global asyncpg connection pool.
+
+    After opening the pool, applies migrations/schema.sql idempotently so new
+    columns and tables added to the schema are present on pre-existing DBs.
+    """
     global _pool
     logger.info(
         "creating asyncpg pool",
@@ -56,7 +61,33 @@ async def create_pool() -> asyncpg.Pool:
         max_size=10,
     )
     logger.info("asyncpg pool ready")
+    await _apply_schema(_pool)
     return _pool
+
+
+async def _apply_schema(pool: asyncpg.Pool) -> None:
+    """Apply migrations/schema.sql idempotently at startup.
+
+    Schema file uses CREATE ... IF NOT EXISTS and DO $$ BEGIN ... EXCEPTION
+    guards so re-running on a live DB is safe and drift-corrects missing
+    columns via ALTER TABLE ... ADD COLUMN IF NOT EXISTS.
+    """
+    # Container layout: /app/storage/postgres.py → /app/migrations/schema.sql
+    # Local dev layout: gold-agent/storage/postgres.py → ../migrations/schema.sql
+    here = Path(__file__).resolve()
+    candidates = [
+        here.parents[1] / "migrations" / "schema.sql",       # container: /app/migrations
+        here.parents[2] / "migrations" / "schema.sql",       # repo root: ../../migrations
+    ]
+    schema_path = next((p for p in candidates if p.exists()), None)
+    if schema_path is None:
+        logger.warning("schema.sql not found in %s, skipping apply", candidates)
+        return
+
+    sql = schema_path.read_text()
+    async with pool.acquire() as conn:
+        await conn.execute(sql)
+    logger.info("schema.sql applied successfully")
 
 
 async def close_pool() -> None:
