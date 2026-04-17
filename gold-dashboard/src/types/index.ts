@@ -97,6 +97,7 @@ export interface Decision {
   compositeScore: string;
   isDryRun: boolean;
   createdAt: string;
+  reasoning?: string | null;
 }
 
 export type TradingSymbol = "BTCUSDT" | "ETHUSDT" | "SOLUSDT" | "BNBUSDT";

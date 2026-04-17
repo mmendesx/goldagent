@@ -96,3 +96,28 @@
   font-size: 13px;
   color: var(--color-text-muted);
 }
+
+/* Skeleton loading rows */
+.skeleton-row td {
+  padding: 0.75rem 1rem;
+}
+
+.skeleton-cell {
+  display: block;
+  height: 14px;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(
+    90deg,
+    var(--color-surface-1) 25%,
+    var(--color-border) 50%,
+    var(--color-surface-1) 75%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.4s ease infinite;
+  min-width: 48px;
+}
+
+@keyframes skeleton-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
