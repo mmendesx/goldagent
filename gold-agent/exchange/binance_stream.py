@@ -6,28 +6,32 @@ for all configured symbols, parses incoming messages into domain objects, and
 delivers them to an ``asyncio.Queue`` (candles) or an optional async callback
 (ticker prices).
 
-Thread model
-------------
-``binance-connector-python`` runs its WebSocket reader on a background daemon
-thread.  All ``on_*`` callbacks are therefore invoked on that thread, not on
-the event loop.  This module bridges the sync callbacks back to the async world
-using:
+Async model
+-----------
+``binance-sdk-spot`` uses an aiohttp-based async WebSocket client.  Callbacks
+registered via ``handle.on("message", cb)`` are called synchronously from
+within the SDK's async receive loop on the running event loop.  No thread
+bridging is required:
 
-- ``asyncio.run_coroutine_threadsafe`` for queue puts (coroutines).
-- ``loop.call_soon_threadsafe``          for event signals (sync callables).
+- ``queue.put_nowait(candle)``             for candle delivery (sync, non-blocking).
+- ``asyncio.ensure_future(coro)``          for the optional async on_ticker callback.
 """
 
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
-import threading
 from collections.abc import Coroutine
 from datetime import datetime, timezone
 from typing import Callable
 
-from binance.websocket.spot.websocket_client import SpotWebsocketClient
+from binance_sdk_spot.websocket_streams import SpotWebSocketStreams
+from binance_common.configuration import ConfigurationWebSocketStreams
+from binance_sdk_spot.websocket_streams.models import (
+    KlineResponse,
+    MiniTickerResponse,
+    KlineIntervalEnum,
+)
 
 from domain.types import Candle
 
@@ -72,15 +76,10 @@ class BinanceStreamClient:
         self._loop = loop
         self._on_ticker = on_ticker
 
-        # _stopped is checked from both the async side (start/stop) and the sync
-        # callbacks running on the connector thread.  threading.Event is
-        # thread-safe; asyncio.Event is not.
-        self._stopped = threading.Event()
+        # asyncio.Event is safe here — everything runs on the single event loop.
+        self._stopped = asyncio.Event()
 
-        # Set by on_close / on_error to unblock _connect().
-        self._disconnected: asyncio.Event | None = None
-
-        self._ws_client: SpotWebsocketClient | None = None
+        self._ws_client: SpotWebSocketStreams | None = None
 
     # ------------------------------------------------------------------
     # Public interface
@@ -104,13 +103,10 @@ class BinanceStreamClient:
         self._stopped.set()
         if self._ws_client is not None:
             try:
-                self._ws_client.stop()
+                await self._ws_client.close_connection(close_session=True)
             except Exception as exc:  # noqa: BLE001
-                logger.warning("Error while stopping WebSocket client: %s", exc)
+                logger.warning("Error while closing WebSocket connection: %s", exc)
             self._ws_client = None
-        # Unblock any pending _connect() wait.
-        if self._disconnected is not None:
-            self._loop.call_soon_threadsafe(self._disconnected.set)
 
     # ------------------------------------------------------------------
     # Reconnect loop
@@ -121,8 +117,7 @@ class BinanceStreamClient:
         while not self._stopped.is_set():
             try:
                 await self._connect()
-                # Successful connection reset the backoff only after _connect()
-                # returns normally (i.e. the stream closed without an error).
+                # Successful connection: reset backoff only after clean return.
                 delay = _BASE_RECONNECT_DELAY
             except Exception as exc:  # noqa: BLE001
                 logger.warning(
@@ -144,30 +139,23 @@ class BinanceStreamClient:
 
     async def _connect(self) -> None:
         """Open a single WebSocket connection, subscribe, and block until it drops."""
-        # Fresh event for each connection attempt.
-        self._disconnected = asyncio.Event()
+        configuration = ConfigurationWebSocketStreams(stream_url=self._stream_url)
+        self._ws_client = SpotWebSocketStreams(configuration)
 
-        self._ws_client = SpotWebsocketClient(
-            stream_url=self._stream_url,
-            on_message=self._on_raw_message,
-            on_open=self._on_open,
-            on_error=self._on_error,
-            on_close=self._on_close,
-        )
-        self._ws_client.start()
+        # Establish the underlying aiohttp WebSocket connection before subscribing.
+        await self._ws_client.connect(self._stream_url, configuration)
 
-        # Subscribe to kline and miniTicker for each symbol.
-        for i, symbol in enumerate(self._symbols):
+        interval_enum = KlineIntervalEnum(self._interval)
+
+        for symbol in self._symbols:
             lower = symbol.lower()
-            self._ws_client.kline(
-                symbol=lower,
-                interval=self._interval,
-                id=i * 2 + 1,
-            )
-            self._ws_client.mini_ticker(
-                symbol=lower,
-                id=i * 2 + 2,
-            )
+
+            kline_handle = await self._ws_client.kline(lower, interval_enum)
+            kline_handle.on("message", self._make_kline_callback(symbol))
+
+            ticker_handle = await self._ws_client.mini_ticker(lower)
+            ticker_handle.on("message", self._make_ticker_callback())
+
             logger.info(
                 "Subscribed to %s@kline_%s and %s@miniTicker",
                 lower,
@@ -175,101 +163,110 @@ class BinanceStreamClient:
                 lower,
             )
 
-        # Block until on_close or on_error signals the event.
-        await self._disconnected.wait()
+        # Block until stopped; the SDK's receive loop runs as a background task.
+        await self._stopped.wait()
 
-        # If stopped was set during the wait, return normally so the reconnect
-        # loop exits cleanly on the next iteration check.
-
-    # ------------------------------------------------------------------
-    # Sync callbacks (called from connector background thread)
-    # ------------------------------------------------------------------
-
-    def _on_open(self, ws) -> None:  # noqa: ANN001
-        logger.info("Binance WebSocket connection opened")
-
-    def _on_close(self, ws) -> None:  # noqa: ANN001
-        logger.info("Binance WebSocket connection closed")
-        if self._disconnected is not None:
-            self._loop.call_soon_threadsafe(self._disconnected.set)
-
-    def _on_error(self, ws, error) -> None:  # noqa: ANN001
-        logger.error("Binance WebSocket error: %s", error)
-        if self._disconnected is not None:
-            self._loop.call_soon_threadsafe(self._disconnected.set)
-
-    def _on_raw_message(self, ws, raw_message: str) -> None:  # noqa: ANN001
-        """Dispatch raw text messages to the appropriate parser.
-
-        Called on the connector's background thread.  Must not block.
-        """
-        # The combined-stream endpoint wraps each message in:
-        # {"stream": "btcusdt@kline_5m", "data": {...}}
-        # Individual-stream subscriptions (SpotWebsocketClient.kline / .mini_ticker)
-        # deliver the inner payload directly when connected to the combined-stream
-        # endpoint, BUT when the client is using individual stream subscriptions it
-        # delivers the raw inner event.  Handle both shapes.
-        try:
-            data = json.loads(raw_message)
-
-            # Strip combined-stream envelope if present.
-            if "stream" in data and "data" in data:
-                data = data["data"]
-
-            event_type = data.get("e")
-
-            if event_type == "kline":
-                self._handle_kline(data)
-            elif event_type in ("24hrMiniTicker", "miniTicker"):
-                self._handle_mini_ticker(data)
-            # Ignore subscription confirmation messages and unknown types silently.
-        except Exception as exc:  # noqa: BLE001
-            logger.error("Error processing raw message: %s | raw=%s", exc, raw_message)
+        # Tear down the connection now that stop() has been called.
+        if self._ws_client is not None:
+            try:
+                await self._ws_client.close_connection(close_session=True)
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("Error closing connection after stop signal: %s", exc)
+            self._ws_client = None
 
     # ------------------------------------------------------------------
-    # Message handlers
+    # Callback factories
     # ------------------------------------------------------------------
 
-    def _handle_kline(self, data: dict) -> None:
-        """Parse a kline event and put the resulting Candle onto the queue."""
-        try:
-            candle = _parse_kline(data)
-        except Exception as exc:  # noqa: BLE001
-            logger.error("Failed to parse kline message: %s | data=%s", exc, data)
-            return
+    def _make_kline_callback(self, symbol: str) -> Callable:
+        """Return a sync callback that handles KlineResponse messages for *symbol*."""
 
-        try:
-            self._candle_queue.put_nowait(candle)
-        except asyncio.QueueFull:
-            logger.warning(
-                "Candle queue full — dropping candle: symbol=%s interval=%s open_time=%s",
-                candle.symbol,
-                candle.interval,
-                candle.open_time,
-            )
+        def _on_kline_message(msg: KlineResponse) -> None:
+            try:
+                candle = _parse_kline_response(msg)
+            except Exception as exc:  # noqa: BLE001
+                logger.error(
+                    "Failed to parse kline message: %s | symbol=%s", exc, symbol
+                )
+                return
 
-    def _handle_mini_ticker(self, data: dict) -> None:
-        """Parse a miniTicker event and invoke the optional on_ticker callback."""
-        if self._on_ticker is None:
-            return
+            try:
+                self._candle_queue.put_nowait(candle)
+            except asyncio.QueueFull:
+                logger.warning(
+                    "Candle queue full — dropping candle: symbol=%s interval=%s open_time=%s",
+                    candle.symbol,
+                    candle.interval,
+                    candle.open_time,
+                )
 
-        try:
-            symbol: str = data["s"]
-            price: float = float(data["c"])  # "c" = last close price in miniTicker
-        except (KeyError, ValueError) as exc:
-            logger.error(
-                "Failed to parse miniTicker message: %s | data=%s", exc, data
-            )
-            return
+        return _on_kline_message
 
-        asyncio.run_coroutine_threadsafe(
-            self._on_ticker(symbol, price),
-            self._loop,
-        )
+    def _make_ticker_callback(self) -> Callable:
+        """Return a sync callback that handles MiniTickerResponse messages."""
+
+        def _on_ticker_message(msg: MiniTickerResponse) -> None:
+            if self._on_ticker is None:
+                return
+
+            try:
+                symbol: str = msg.s
+                price: float = float(msg.c)
+            except (AttributeError, ValueError) as exc:
+                logger.error("Failed to parse miniTicker message: %s", exc)
+                return
+
+            # on_ticker is an async coroutine — schedule it on the running loop.
+            asyncio.ensure_future(self._on_ticker(symbol, price))
+
+        return _on_ticker_message
 
 
 # ---------------------------------------------------------------------------
 # Pure parsing functions — no side effects, easy to unit-test
+# ---------------------------------------------------------------------------
+
+def _parse_kline_response(msg: KlineResponse) -> Candle:
+    """Parse a :class:`KlineResponse` SDK model into a :class:`~domain.types.Candle`.
+
+    Prices are kept as strings exactly as Binance sends them to avoid
+    floating-point rounding artefacts and to match the ``Candle`` model's
+    ``str`` price fields.
+
+    Args:
+        msg: A ``KlineResponse`` object delivered by the SDK.
+
+    Returns:
+        A :class:`~domain.types.Candle` with ``is_closed`` reflecting the
+        ``x`` flag from the kline payload.
+
+    Raises:
+        AttributeError: If a required attribute is missing from the model.
+        TypeError:      If a field has an unexpected type.
+    """
+    k = msg.k
+
+    open_time = datetime.fromtimestamp(k.t / 1000.0, tz=timezone.utc)
+    close_time = datetime.fromtimestamp(k.T / 1000.0, tz=timezone.utc)
+
+    return Candle(
+        symbol=k.s,
+        interval=k.i,
+        open_time=open_time,
+        close_time=close_time,
+        open_price=k.o,
+        high_price=k.h,
+        low_price=k.l,
+        close_price=k.c,
+        volume=k.v,
+        quote_volume=k.q,
+        trade_count=int(k.n),
+        is_closed=bool(k.x),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Backward-compatible dict-based parser (kept for unit tests that inject raw dicts)
 # ---------------------------------------------------------------------------
 
 def _parse_kline(data: dict) -> Candle:

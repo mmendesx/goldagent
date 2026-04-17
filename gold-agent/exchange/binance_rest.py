@@ -1,7 +1,7 @@
 """
 Binance REST client for account data and order placement.
 
-Uses the synchronous ``binance-connector-python`` Spot client, bridged to
+Uses the synchronous ``binance-sdk-spot`` SpotRestAPI client, bridged to
 async via ``asyncio.to_thread`` so the event loop is never blocked.
 """
 
@@ -10,7 +10,13 @@ from __future__ import annotations
 import asyncio
 import logging
 
-from binance.spot import Spot
+from binance_sdk_spot.rest_api import SpotRestAPI
+from binance_common.configuration import ConfigurationRestAPI
+from binance_sdk_spot.rest_api.models.enums import (
+    NewOrderSideEnum,
+    NewOrderTypeEnum,
+    NewOrderTimeInForceEnum,
+)
 
 from domain.types import ExchangeBalance, ExchangeBalanceStatus, Order, OrderSide, OrderStatus
 
@@ -29,10 +35,12 @@ class BinanceRestClient:
     def __init__(self, api_key: str, api_secret: str, base_url: str) -> None:
         self._configured = bool(api_key and api_secret)
         if self._configured:
-            self._client = Spot(
-                api_key=api_key,
-                api_secret=api_secret,
-                base_url=base_url,
+            self._client = SpotRestAPI(
+                ConfigurationRestAPI(
+                    api_key=api_key,
+                    api_secret=api_secret,
+                    base_path=base_url,
+                )
             )
 
     async def fetch_usdt_balance(self) -> ExchangeBalance:
@@ -48,22 +56,24 @@ class BinanceRestClient:
             return ExchangeBalance(balance="0", status=ExchangeBalanceStatus.NOT_CONFIGURED)
 
         try:
-            account = await asyncio.to_thread(self._client.account)
+            response = await asyncio.to_thread(self._client.get_account)
         except Exception as exc:
             logger.error(
                 "BinanceRestClient.fetch_usdt_balance: API call failed: %s", exc
             )
             return ExchangeBalance(balance="0", status=ExchangeBalanceStatus.ERROR)
 
-        for balance in account.get("balances", []):
-            if balance.get("asset") == "USDT":
+        for balance in response.data.balances:
+            if balance.asset == "USDT":
                 return ExchangeBalance(
-                    balance=balance.get("free", "0"),
+                    balance=balance.free,
                     status=ExchangeBalanceStatus.OK,
                 )
 
         # USDT asset not present in account — return zero rather than an error.
-        logger.info("BinanceRestClient.fetch_usdt_balance: USDT not found in balances, returning 0")
+        logger.info(
+            "BinanceRestClient.fetch_usdt_balance: USDT not found in balances, returning 0"
+        )
         return ExchangeBalance(balance="0", status=ExchangeBalanceStatus.OK)
 
     async def place_limit_order(
@@ -103,18 +113,20 @@ class BinanceRestClient:
             price,
         )
 
+        side_enum = NewOrderSideEnum(side)
+
         response = await asyncio.to_thread(
             self._client.new_order,
-            symbol=symbol,
-            side=side,
-            type="LIMIT",
-            timeInForce="GTC",
-            quantity=quantity,
-            price=price,
+            symbol,
+            side_enum,
+            NewOrderTypeEnum.LIMIT,
+            time_in_force=NewOrderTimeInForceEnum.GTC,
+            quantity=float(quantity),
+            price=float(price),
         )
 
-        # Binance returns orderId as an integer; convert to str for the domain model.
-        external_order_id = str(response.get("orderId", ""))
+        # Binance returns order_id as an int; convert to str for the domain model.
+        external_order_id = str(response.data.order_id)
 
         logger.info(
             "BinanceRestClient.place_limit_order: order placed — "
