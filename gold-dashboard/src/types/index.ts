@@ -40,20 +40,21 @@ export interface TickerUpdate {
 }
 
 export interface Position {
-  id: number;
+  id?: number;
   symbol: string;
   side: "LONG" | "SHORT";
   entryPrice: string;
   exitPrice?: string;
   quantity: string;
-  takeProfitPrice: string;
-  stopLossPrice: string;
+  takeProfitPrice?: string;
+  stopLossPrice?: string;
   trailingStopDistance?: string;
   trailingStopPrice?: string;
   realizedPnl?: string;
+  fees?: string;
   status: "open" | "closed";
   closeReason?: "TAKE_PROFIT" | "STOP_LOSS" | "TRAILING_STOP" | "MANUAL" | "CIRCUIT_BREAKER";
-  openedAt: string;
+  openedAt?: string;
   closedAt?: string;
 }
 
@@ -66,37 +67,37 @@ export interface PortfolioMetrics {
   lossCount: number;
   totalTrades: number;
   winRate: string;
-  profitFactor?: string;
-  averageWin?: string;
-  averageLoss?: string;
-  sharpeRatio?: string;
+  profitFactor: string;
+  averageWin: string;
+  averageLoss: string;
+  sharpeRatio: string;
   maxDrawdownPercent: string;
   isCircuitBreakerActive: boolean;
 }
 
 export interface TradeRecord {
-  id: number;
+  id?: number;
   symbol: string;
   side: "LONG" | "SHORT";
   entryPrice: string;
   exitPrice: string;
   quantity: string;
   realizedPnl: string;
-  closeReason: string;
-  openedAt: string;
-  closedAt: string;
+  closeReason?: string;
+  openedAt?: string;
+  closedAt?: string;
 }
 
 export interface Decision {
-  id: number;
+  id?: number;
   symbol: string;
   action: "BUY" | "SELL" | "HOLD";
   confidence: number;
   executionStatus: string;
   rejectionReason?: string;
-  compositeScore: string;
+  compositeScore?: string;
   isDryRun: boolean;
-  createdAt: string;
+  createdAt?: string;
   reasoning?: string | null;
 }
 
