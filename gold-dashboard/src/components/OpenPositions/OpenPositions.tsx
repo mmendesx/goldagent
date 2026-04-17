@@ -1,7 +1,9 @@
 import { useEffect, useMemo } from "react";
+import { AnimatePresence, motion } from "motion/react";
 import { useDashboardStore, computeOpenPositionsWithLivePnl } from "../../store";
 import { restClient } from "../../api";
 import { formatPrice } from "../../utils";
+import { VisuallyHidden } from "../../design-system";
 import "./OpenPositions.css";
 
 const REFRESH_INTERVAL_MILLISECONDS = 3000;
@@ -52,47 +54,56 @@ export function OpenPositions() {
   return (
     <div className="open-positions">
       <table className="open-positions-table">
+        <caption><VisuallyHidden>Open Positions</VisuallyHidden></caption>
         <thead>
           <tr>
-            <th>Symbol</th>
-            <th>Side</th>
-            <th>Entry Price</th>
-            <th>Current Price</th>
-            <th>Unrealized P&amp;L</th>
-            <th>SL</th>
-            <th>TP</th>
-            <th>Quantity</th>
+            <th scope="col">Symbol</th>
+            <th scope="col">Side</th>
+            <th scope="col">Entry Price</th>
+            <th scope="col">Current Price</th>
+            <th scope="col">Unrealized P&amp;L</th>
+            <th scope="col">SL</th>
+            <th scope="col">TP</th>
+            <th scope="col">Quantity</th>
           </tr>
         </thead>
         <tbody>
-          {openPositions.map((position) => {
-            const unrealizedPnlNumeric = parseFloat(position.unrealizedPnl);
-            const pnlClassName =
-              unrealizedPnlNumeric > 0
-                ? "pnl-positive"
-                : unrealizedPnlNumeric < 0
-                ? "pnl-negative"
-                : "pnl-neutral";
-            const sideClassName = position.side === "LONG" ? "side-long" : "side-short";
+          <AnimatePresence>
+            {openPositions.map((position, i) => {
+              const unrealizedPnlNumeric = parseFloat(position.unrealizedPnl);
+              const pnlClassName =
+                unrealizedPnlNumeric > 0
+                  ? "pnl-positive"
+                  : unrealizedPnlNumeric < 0
+                  ? "pnl-negative"
+                  : "pnl-neutral";
+              const sideClassName = position.side === "LONG" ? "side-long" : "side-short";
 
-            return (
-              <tr key={position.id}>
-                <td className="symbol-cell">{position.symbol}</td>
-                <td>
-                  <span className={`side-badge ${sideClassName}`}>{position.side}</span>
-                </td>
-                <td className="numeric-cell">{formatPrice(position.entryPrice)}</td>
-                <td className="numeric-cell">{formatPrice(position.currentPrice)}</td>
-                <td className={`numeric-cell ${pnlClassName}`}>
-                  {unrealizedPnlNumeric >= 0 ? "+" : ""}
-                  {formatPrice(position.unrealizedPnl)}
-                </td>
-                <td className="numeric-cell">{formatPrice(position.stopLossPrice)}</td>
-                <td className="numeric-cell">{formatPrice(position.takeProfitPrice)}</td>
-                <td className="numeric-cell">{formatPrice(position.quantity)}</td>
-              </tr>
-            );
-          })}
+              return (
+                <motion.tr
+                  key={position.id ?? `${position.symbol}-${i}`}
+                  initial={{ opacity: 0, y: 4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.15, delay: i * 0.04 }}
+                >
+                  <td className="symbol-cell">{position.symbol}</td>
+                  <td>
+                    <span className={`side-badge ${sideClassName}`}>{position.side}</span>
+                  </td>
+                  <td className="numeric-cell">{formatPrice(position.entryPrice)}</td>
+                  <td className="numeric-cell">{formatPrice(position.currentPrice)}</td>
+                  <td className={`numeric-cell ${pnlClassName}`}>
+                    {unrealizedPnlNumeric >= 0 ? "+" : ""}
+                    {formatPrice(position.unrealizedPnl)}
+                  </td>
+                  <td className="numeric-cell">{formatPrice(position.stopLossPrice)}</td>
+                  <td className="numeric-cell">{formatPrice(position.takeProfitPrice)}</td>
+                  <td className="numeric-cell">{formatPrice(position.quantity)}</td>
+                </motion.tr>
+              );
+            })}
+          </AnimatePresence>
         </tbody>
       </table>
     </div>

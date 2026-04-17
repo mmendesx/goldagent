@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
+import { AnimatePresence, motion } from "motion/react";
 import { useDashboardStore } from "../../store";
 import { restClient } from "../../api";
 import { useListFetch } from "../../hooks/useListFetch";
+import { VisuallyHidden } from "../../design-system";
 import type { Decision, TradingSymbol } from "../../types";
 import "./DecisionLog.css";
 
@@ -54,21 +56,24 @@ export function DecisionLog() {
       {filteredDecisions.length > 0 && (
         <div className="decision-log-table-container">
           <table className="decision-log-table">
+            <caption><VisuallyHidden>Decision Log</VisuallyHidden></caption>
             <thead>
               <tr>
-                <th>Time</th>
-                <th>Symbol</th>
-                <th>Action</th>
-                <th>Confidence</th>
-                <th>Score</th>
-                <th>Status</th>
-                <th>Reason</th>
+                <th scope="col">Time</th>
+                <th scope="col">Symbol</th>
+                <th scope="col">Action</th>
+                <th scope="col">Confidence</th>
+                <th scope="col">Score</th>
+                <th scope="col">Status</th>
+                <th scope="col">Reason</th>
               </tr>
             </thead>
             <tbody>
-              {filteredDecisions.map((decision) => (
-                <DecisionRow key={decision.id} decision={decision} />
-              ))}
+              <AnimatePresence>
+                {filteredDecisions.map((decision, i) => (
+                  <DecisionRow key={decision.id ?? `${decision.symbol}-${i}`} decision={decision} index={i} />
+                ))}
+              </AnimatePresence>
             </tbody>
           </table>
         </div>
@@ -94,14 +99,19 @@ export function DecisionLog() {
   );
 }
 
-function DecisionRow({ decision }: { decision: Decision }) {
+function DecisionRow({ decision, index }: { decision: Decision; index: number }) {
   const actionClassName = getActionClassName(decision.action);
   const statusClassName = getStatusClassName(decision.executionStatus);
   const compositeScoreNumeric = parseFloat(decision.compositeScore ?? "0");
   const scoreClassName = compositeScoreNumeric > 0 ? "score-positive" : compositeScoreNumeric < 0 ? "score-negative" : "score-neutral";
 
   return (
-    <tr>
+    <motion.tr
+      initial={{ opacity: 0, y: 4 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.15, delay: index * 0.04 }}
+    >
       <td>{decision.createdAt ? formatDateTime(decision.createdAt) : "—"}</td>
       <td className="symbol-cell">{decision.symbol}</td>
       <td>
@@ -118,7 +128,7 @@ function DecisionRow({ decision }: { decision: Decision }) {
         <span className={`status-badge ${statusClassName}`}>{formatStatus(decision.executionStatus)}</span>
       </td>
       <td className="reason-cell">{decision.rejectionReason ?? "—"}</td>
-    </tr>
+    </motion.tr>
   );
 }
 

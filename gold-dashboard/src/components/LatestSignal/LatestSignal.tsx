@@ -1,6 +1,8 @@
 import { useState } from "react";
 import type { Decision } from "../../types";
+import { Fade } from "../../vendor/animate-ui/primitives/effects/fade";
 import "./LatestSignal.css";
+
 
 const REASONING_TRUNCATE_LENGTH = 240;
 
@@ -19,35 +21,37 @@ export function LatestSignal({ decision }: LatestSignalProps) {
 
   return (
     <section className="latest-signal" aria-label="Latest signal">
-      <header className="latest-signal__header">
-        <div className="latest-signal__action-group">
-          <span className={`latest-signal__action-badge latest-signal__action-badge--${decision.action.toLowerCase()}`}>
-            {decision.action}
-          </span>
-          <span className="latest-signal__symbol">{decision.symbol}</span>
-          {decision.isDryRun && (
-            <span className="latest-signal__dry-run-badge" title="Dry run — no real order placed">
-              DRY-RUN
+      <Fade key={decision.id ?? decision.createdAt ?? "signal"}>
+        <header className="latest-signal__header">
+          <div className="latest-signal__action-group">
+            <span className={`latest-signal__action-badge latest-signal__action-badge--${decision.action.toLowerCase()}`}>
+              {decision.action}
             </span>
-          )}
-        </div>
-        <time
-          className="latest-signal__timestamp"
-          dateTime={decision.createdAt ?? ""}
-          title={decision.createdAt ? new Date(decision.createdAt).toLocaleString() : ""}
-        >
-          {decision.createdAt ? formatRelativeTime(decision.createdAt) : "—"}
-        </time>
-      </header>
+            <span className="latest-signal__symbol">{decision.symbol}</span>
+            {decision.isDryRun && (
+              <span className="latest-signal__dry-run-badge" title="Dry run — no real order placed">
+                DRY-RUN
+              </span>
+            )}
+          </div>
+          <time
+            className="latest-signal__timestamp"
+            dateTime={decision.createdAt ?? ""}
+            title={decision.createdAt ? new Date(decision.createdAt).toLocaleString() : ""}
+          >
+            {decision.createdAt ? formatRelativeTime(decision.createdAt) : "—"}
+          </time>
+        </header>
 
-      <div className="latest-signal__body">
-        <ConfidenceRow confidence={decision.confidence} />
-        {decision.compositeScore !== undefined && (
-          <CompositeScoreRow compositeScore={decision.compositeScore} />
-        )}
-        <StatusRow executionStatus={decision.executionStatus} />
-        <ReasoningRow reasoning={decision.reasoning} />
-      </div>
+        <div className="latest-signal__body">
+          <ConfidenceRow confidence={decision.confidence} />
+          {decision.compositeScore !== undefined && (
+            <CompositeScoreRow compositeScore={decision.compositeScore} />
+          )}
+          <StatusRow executionStatus={decision.executionStatus} />
+          <ReasoningRow reasoning={decision.reasoning} />
+        </div>
+      </Fade>
     </section>
   );
 }

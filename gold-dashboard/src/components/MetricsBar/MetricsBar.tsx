@@ -1,14 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useDashboardStore } from "../../store";
-import { formatCurrency, formatPercent, getDrawdownSeverity, dailyPnl, cumulativePnl, winRate as computeWinRate, maxDrawdown } from "../../utils";
+import { getDrawdownSeverity, dailyPnl, cumulativePnl, winRate as computeWinRate, maxDrawdown } from "../../utils";
 import { restClient } from "../../api";
-import { MetricItem } from "./MetricItem";
+import { MetricCard, LiveNumber, Badge } from "../../design-system";
+import { GradientText } from "../../vendor/react-bits/GradientText";
 import "./MetricsBar.css";
-
-function formatSignedPnl(value: number): string {
-  const prefix = value >= 0 ? '+' : '';
-  return `${prefix}$${Math.abs(value).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
 
 const EXCHANGE_BALANCE_POLL_MS = 30_000;
 
@@ -50,87 +46,179 @@ export function MetricsBar() {
 
   const drawdownNumeric = parseFloat(drawdownPercent);
   const drawdownSeverity = getDrawdownSeverity(drawdownNumeric);
+  const drawdownBadge = drawdownSeverity === "high" ? (
+    <Badge variant="danger" icon={<span aria-hidden="true">⚠</span>}>HIGH</Badge>
+  ) : drawdownSeverity === "medium" ? (
+    <Badge variant="warning" icon={<span aria-hidden="true">▲</span>}>MED</Badge>
+  ) : null;
+
+  const balanceLiveNumber = (
+    <LiveNumber
+      value={parseFloat(balance)}
+      format={(v) => `$${v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+      decimalPlaces={2}
+    />
+  );
 
   return (
     <section className="metrics-bar" aria-label="Portfolio metrics">
-      <MetricItem label="Balance" value={formatCurrency(balance)} />
-      <MetricItem label="Peak Balance" value={formatCurrency(peakBalance)} />
-      <MetricItem
+      {/* Hero balance — conditional on circuit breaker */}
+      {isCircuitBreakerActive ? (
+        <MetricCard
+          label="Balance"
+          severity="high"
+          value={balanceLiveNumber}
+          badge={
+            <Badge variant="danger" icon={<span aria-hidden="true">🔒</span>}>BREAKER</Badge>
+          }
+        />
+      ) : (
+        <MetricCard
+          label="Balance"
+          value={
+            <GradientText colors={["#f0b429", "#ffd580", "#f0b429"]} animationSpeed={8}>
+              {balanceLiveNumber}
+            </GradientText>
+          }
+        />
+      )}
+
+      <MetricCard
+        label="Peak Balance"
+        value={
+          <LiveNumber
+            value={parseFloat(peakBalance)}
+            format={(v) => `$${v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+            decimalPlaces={2}
+          />
+        }
+      />
+
+      <MetricCard
         label="Drawdown"
-        value={formatPercent(drawdownPercent)}
         severity={drawdownSeverity}
+        badge={drawdownBadge}
+        value={
+          <LiveNumber
+            value={drawdownNumeric}
+            format={(v) => `${v.toFixed(2)}%`}
+            decimalPlaces={2}
+          />
+        }
       />
-      <MetricItem label="Win Rate" value={formatPercent(winRate, 1)} />
-      <MetricItem label="Total Trades" value={totalTrades.toString()} />
-      <MetricItem label="Open Positions" value={openPositionCount.toString()} />
-      <MetricItem
+
+      <MetricCard
+        label="Win Rate"
+        value={
+          <LiveNumber
+            value={parseFloat(winRate)}
+            format={(v) => `${v.toFixed(1)}%`}
+            decimalPlaces={1}
+          />
+        }
+      />
+
+      <MetricCard
+        label="Total Trades"
+        value={totalTrades.toString()}
+      />
+
+      <MetricCard
+        label="Open Positions"
+        value={openPositionCount.toString()}
+      />
+
+      <MetricCard
         label="Daily P&L"
-        value={formatSignedPnl(analytics.daily)}
-        severity={analytics.daily < 0 ? 'high' : undefined}
+        severity={analytics.daily < 0 ? "high" : undefined}
+        value={
+          <LiveNumber
+            value={analytics.daily}
+            format={(v) => {
+              const prefix = v >= 0 ? "+" : "";
+              return `${prefix}$${Math.abs(v).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+            }}
+            decimalPlaces={2}
+          />
+        }
       />
-      <MetricItem
+
+      <MetricCard
         label="Cumul. P&L"
-        value={formatSignedPnl(analytics.cumulative)}
-        severity={analytics.cumulative < 0 ? 'medium' : undefined}
+        severity={analytics.cumulative < 0 ? "medium" : undefined}
+        value={
+          <LiveNumber
+            value={analytics.cumulative}
+            format={(v) => {
+              const prefix = v >= 0 ? "+" : "";
+              return `${prefix}$${Math.abs(v).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+            }}
+            decimalPlaces={2}
+          />
+        }
       />
-      <MetricItem
+
+      <MetricCard
         label="Win Rate (live)"
         value={
           analytics.winRateResult
             ? `${(analytics.winRateResult.rate * 100).toFixed(1)}% (${analytics.winRateResult.wins}W/${analytics.winRateResult.losses}L)`
-            : '—'
+            : "—"
         }
       />
-      <MetricItem
+
+      <MetricCard
         label="Max Drawdown"
+        severity={analytics.drawdownResult.absolute > 0 ? "medium" : undefined}
         value={
           analytics.drawdownResult.absolute > 0
             ? analytics.drawdownResult.relative != null
               ? `$${analytics.drawdownResult.absolute.toFixed(2)} (${(analytics.drawdownResult.relative * 100).toFixed(1)}%)`
               : `$${analytics.drawdownResult.absolute.toFixed(2)}`
-            : '—'
+            : "—"
         }
-        severity={analytics.drawdownResult.absolute > 0 ? 'medium' : undefined}
       />
-      <MetricItem
+
+      <MetricCard
         label="Binance USDT"
+        severity={exchangeBalances?.binance.status === "error" ? "high" : undefined}
         value={
           exchangeBalances == null
             ? "—"
             : exchangeBalances.binance.status === "ok"
-              ? "$" +
-                parseFloat(exchangeBalances.binance.balance).toLocaleString("en-US", {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                })
+              ? (
+                <LiveNumber
+                  value={parseFloat(exchangeBalances.binance.balance)}
+                  format={(v) => `$${v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                  decimalPlaces={2}
+                />
+              )
               : exchangeBalances.binance.status === "not_configured"
                 ? "—"
                 : "Error"
         }
-        severity={exchangeBalances?.binance.status === "error" ? "high" : undefined}
       />
-      <MetricItem
+
+      <MetricCard
         label="Polymarket USDC"
+        severity={exchangeBalances?.polymarket.status === "error" ? "high" : undefined}
         value={
           exchangeBalances == null
             ? "—"
             : exchangeBalances.polymarket.status === "ok"
-              ? "$" +
-                parseFloat(exchangeBalances.polymarket.balance).toLocaleString("en-US", {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                })
+              ? (
+                <LiveNumber
+                  value={parseFloat(exchangeBalances.polymarket.balance)}
+                  format={(v) => `$${v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                  decimalPlaces={2}
+                />
+              )
               : exchangeBalances.polymarket.status === "not_configured"
                 ? "—"
                 : "Error"
         }
-        severity={exchangeBalances?.polymarket.status === "error" ? "high" : undefined}
       />
-      {isCircuitBreakerActive && (
-        <div className="circuit-breaker-alert" role="alert">
-          ⚠ Circuit breaker active
-        </div>
-      )}
+
       {balanceError && (
         <div className="metrics-balance-error" role="alert" title={balanceError}>
           Balance error
