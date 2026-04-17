@@ -1,0 +1,93 @@
+.chart-settings {
+  position: relative;
+  display: inline-block;
+}
+
+.chart-settings__trigger {
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 6px;
+  color: #888;
+  cursor: pointer;
+  font-size: 1rem;
+  padding: 4px 8px;
+  line-height: 1;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.chart-settings__trigger:hover,
+.chart-settings__trigger--active {
+  color: #c8c8d8;
+  border-color: rgba(255,255,255,0.2);
+}
+
+.chart-settings__trigger:focus-visible {
+  outline: 2px solid #6366f1;
+  outline-offset: 2px;
+}
+
+.chart-settings__panel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 100;
+  background: #1e1e2e;
+  border: 1px solid #2a2a3a;
+  border-radius: 8px;
+  padding: 12px;
+  min-width: 200px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+}
+
+.chart-settings__row {
+  margin-bottom: 10px;
+}
+
+.chart-settings__row:last-child {
+  margin-bottom: 0;
+}
+
+.chart-settings__toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  color: #c8c8d8;
+  font-size: 0.85rem;
+}
+
+.chart-settings__toggle input[type="checkbox"] {
+  accent-color: #6366f1;
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+}
+
+.chart-settings__periods {
+  display: flex;
+  gap: 12px;
+  margin-top: 6px;
+  padding-left: 22px;
+}
+
+.chart-settings__period-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #888;
+  font-size: 0.8rem;
+}
+
+.chart-settings__period-input {
+  width: 52px;
+  background: #12121a;
+  border: 1px solid #2a2a3a;
+  border-radius: 4px;
+  color: #c8c8d8;
+  font-size: 0.8rem;
+  padding: 3px 6px;
+}
+
+.chart-settings__period-input:focus {
+  outline: 1px solid #6366f1;
+}
