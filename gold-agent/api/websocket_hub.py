@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import time
 from typing import Any
 
 from fastapi import WebSocket
@@ -17,6 +18,7 @@ class WebSocketHub:
     def __init__(self):
         self._connections: set[WebSocket] = set()
         self._lock = asyncio.Lock()
+        self._last_ticker_emit: dict[str, float] = {}
 
     async def connect(self, websocket: WebSocket) -> None:
         """Accept and register a new WebSocket connection."""
@@ -80,3 +82,14 @@ class WebSocketHub:
     async def publish_metrics(self, metrics_dict: dict) -> None:
         """Broadcast a metric_update event."""
         await self.broadcast({"type": "metric_update", "payload": metrics_dict})
+
+    async def publish_ticker(self, symbol: str, price: str, timestamp: str) -> None:
+        """Broadcast a ticker_update event, throttled to at most 1 emission per symbol per second."""
+        now = time.monotonic()
+        if now - self._last_ticker_emit.get(symbol, 0) < 1.0:
+            return
+        self._last_ticker_emit[symbol] = now
+        await self.broadcast({
+            "type": "ticker_update",
+            "payload": {"symbol": symbol, "price": price, "timestamp": timestamp},
+        })

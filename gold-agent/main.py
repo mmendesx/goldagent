@@ -12,64 +12,32 @@ import logging
 import os
 import signal
 import sys
-import types
-
-# ---------------------------------------------------------------------------
-# Path bootstrap
-#
-# Register a virtual `gold_agent` package pointing at this directory so that:
-#   - direct imports (e.g. `from config import settings`) work when gold-agent/
-#     is on sys.path
-#   - absolute `gold_agent.*` imports inside postgres.py, aggregator.py, etc.
-#     resolve to the same directory
-#   - the relative `..` imports inside api/router.py resolve correctly because
-#     `api` is now a subpackage of `gold_agent`, not a top-level package
-#
-# This must happen before any application import.
-# ---------------------------------------------------------------------------
 
 _PKG_DIR = os.path.dirname(os.path.abspath(__file__))
 if _PKG_DIR not in sys.path:
     sys.path.insert(0, _PKG_DIR)
 
-_gold_agent_pkg = types.ModuleType("gold_agent")
-_gold_agent_pkg.__path__ = [_PKG_DIR]  # type: ignore[assignment]
-_gold_agent_pkg.__file__ = os.path.join(_PKG_DIR, "__init__.py")
-sys.modules.setdefault("gold_agent", _gold_agent_pkg)
-
-# ---------------------------------------------------------------------------
-# Application imports (after path bootstrap)
-#
-# All imports use the `gold_agent.*` prefix so that:
-#   1. Every subpackage (api, engine, exchange, ...) is loaded as a child of
-#      gold_agent — this is required for the relative `..` imports inside
-#      handlers.py and router.py to resolve correctly.
-#   2. There is a single module-object identity for each subpackage; mixing
-#      `from api.X` with `from gold_agent.api.X` would create duplicate module
-#      entries and cause isinstance() failures on shared types.
-# ---------------------------------------------------------------------------
-
 from datetime import datetime, timezone  # noqa: E402
 
 import uvicorn  # noqa: E402
 
-from gold_agent.config import settings  # noqa: E402
-from gold_agent.storage import postgres, redis_client  # noqa: E402
-from gold_agent.exchange.binance_stream import BinanceStreamClient  # noqa: E402
-from gold_agent.exchange.binance_rest import BinanceRestClient  # noqa: E402
-from gold_agent.exchange.polymarket_stream import PolymarketStreamClient  # noqa: E402
-from gold_agent.exchange.polymarket_rest import PolymarketRestClient  # noqa: E402
-from gold_agent.market.aggregator import CandleAggregator  # noqa: E402
-from gold_agent.analysis.indicators import compute_indicators  # noqa: E402
-from gold_agent.engine.context_builder import build_context  # noqa: E402
-from gold_agent.engine.llm_engine import LLMDecisionEngine  # noqa: E402
-from gold_agent.engine.risk import RiskGate  # noqa: E402
-from gold_agent.execution.executor import Executor  # noqa: E402
-from gold_agent.execution.position_monitor import PositionMonitor  # noqa: E402
-from gold_agent.execution.portfolio_manager import PortfolioManager  # noqa: E402
-from gold_agent.api.websocket_hub import WebSocketHub  # noqa: E402
-from gold_agent.api.router import create_app  # noqa: E402
-from gold_agent.domain.types import DecisionAction, OrderSide, TradeIntent  # noqa: E402
+from config import settings  # noqa: E402
+from storage import postgres, redis_client  # noqa: E402
+from exchange.binance_stream import BinanceStreamClient  # noqa: E402
+from exchange.binance_rest import BinanceRestClient  # noqa: E402
+from exchange.polymarket_stream import PolymarketStreamClient  # noqa: E402
+from exchange.polymarket_rest import PolymarketRestClient  # noqa: E402
+from market.aggregator import CandleAggregator  # noqa: E402
+from analysis.indicators import compute_indicators  # noqa: E402
+from engine.context_builder import build_context  # noqa: E402
+from engine.llm_engine import LLMDecisionEngine  # noqa: E402
+from engine.risk import RiskGate  # noqa: E402
+from execution.executor import Executor  # noqa: E402
+from execution.position_monitor import PositionMonitor  # noqa: E402
+from execution.portfolio_manager import PortfolioManager  # noqa: E402
+from api.websocket_hub import WebSocketHub  # noqa: E402
+from api.router import create_app  # noqa: E402
+from domain.types import DecisionAction, OrderSide, TradeIntent  # noqa: E402
 
 logging.basicConfig(
     level=logging.INFO,
@@ -136,6 +104,10 @@ async def main() -> None:
     polymarket_cache: dict[str, dict] = {}
 
     # --- Binance stream client ---
+    async def on_ticker(sym: str, price: float) -> None:
+        await redis_client.cache_ticker_price(sym, price)
+        await hub.publish_ticker(sym, str(price), datetime.now(timezone.utc).isoformat())
+
     loop = asyncio.get_running_loop()
     binance_stream = BinanceStreamClient(
         stream_url=settings.binance_websocket_stream_url,
@@ -143,7 +115,7 @@ async def main() -> None:
         interval=settings.gold_default_interval,
         candle_queue=candle_queue,
         loop=loop,
-        on_ticker=lambda sym, price: redis_client.cache_ticker_price(sym, price),
+        on_ticker=on_ticker,
     )
 
     # --- Polymarket stream client ---
