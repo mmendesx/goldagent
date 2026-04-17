@@ -2,6 +2,18 @@ import { NavLink, Routes, Route, Navigate } from "react-router-dom";
 import { PriceChart } from "../../components/PriceChart/PriceChart";
 import { PolymarketOverview } from "../../components/PolymarketOverview";
 import { DecisionLog } from "../../components/DecisionLog/DecisionLog";
+import { LatestSignal } from "../../components/LatestSignal";
+import { useDashboardStore } from "../../store";
+
+function ChartWithSignal() {
+  const latestDecision = useDashboardStore((state) => state.decisions[0] ?? null);
+  return (
+    <>
+      <PriceChart />
+      <LatestSignal decision={latestDecision} />
+    </>
+  );
+}
 
 export function PolymarketView() {
   return (
@@ -20,7 +32,7 @@ export function PolymarketView() {
 
       <main className="dashboard-content">
         <Routes>
-          <Route path="chart" element={<PriceChart />} />
+          <Route path="chart" element={<ChartWithSignal />} />
           <Route path="overview" element={<PolymarketOverview />} />
           <Route path="decisions" element={<DecisionLog />} />
           <Route path="*" element={<Navigate to="/polymarket/chart" replace />} />

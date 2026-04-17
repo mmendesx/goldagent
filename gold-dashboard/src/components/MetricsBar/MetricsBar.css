@@ -32,10 +32,6 @@
   transition: color 0.3s ease;
 }
 
-.metric-value--low {
-  color: var(--color-positive);
-}
-
 .metric-value--medium {
   color: var(--color-warning);
 }
@@ -44,21 +40,27 @@
   color: var(--color-negative);
 }
 
-.circuit-breaker-alert {
-  margin-left: auto;
-  padding: 0.5rem 1rem;
+.metric-badge {
+  margin-top: 0.25rem;
+}
+
+.circuit-breaker-badge {
+  display: inline-block;
+  padding: 0.2rem 0.5rem;
   background: rgba(231, 76, 60, 0.15);
   color: var(--color-negative);
   border: 1px solid var(--color-negative);
-  border-radius: var(--radius-md);
-  font-weight: 600;
-  font-size: 13px;
+  border-radius: var(--radius-sm, 4px);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
   animation: pulse-warning 2s ease-in-out infinite;
 }
 
 @keyframes pulse-warning {
   0%, 100% { opacity: 1; }
-  50% { opacity: 0.7; }
+  50% { opacity: 0.65; }
 }
 
 @media (max-width: 768px) {

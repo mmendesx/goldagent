@@ -1,0 +1,1 @@
+export { LatestSignal } from "./LatestSignal";

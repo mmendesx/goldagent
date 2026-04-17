@@ -61,23 +61,27 @@ describe("formatPrice", () => {
 });
 
 describe("getDrawdownSeverity", () => {
-  it("returns low for drawdown below 5%", () => {
-    expect(getDrawdownSeverity(3)).toBe("low");
+  it("returns undefined for drawdown below 10%", () => {
+    expect(getDrawdownSeverity(3)).toBeUndefined();
   });
 
-  it("returns medium for drawdown between 5% and 10%", () => {
-    expect(getDrawdownSeverity(7)).toBe("medium");
+  it("returns undefined for drawdown just below 10%", () => {
+    expect(getDrawdownSeverity(9.99)).toBeUndefined();
   });
 
-  it("returns high for drawdown at or above 10%", () => {
-    expect(getDrawdownSeverity(12)).toBe("high");
+  it("returns medium for drawdown at 10%", () => {
+    expect(getDrawdownSeverity(10)).toBe("medium");
   });
 
-  it("returns medium at the 5% boundary", () => {
-    expect(getDrawdownSeverity(5)).toBe("medium");
+  it("returns medium for drawdown between 10% and 15%", () => {
+    expect(getDrawdownSeverity(12.5)).toBe("medium");
   });
 
-  it("returns high at the 10% boundary", () => {
-    expect(getDrawdownSeverity(10)).toBe("high");
+  it("returns high for drawdown at 15%", () => {
+    expect(getDrawdownSeverity(15)).toBe("high");
+  });
+
+  it("returns high for drawdown above 15%", () => {
+    expect(getDrawdownSeverity(20)).toBe("high");
   });
 });

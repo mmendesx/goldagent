@@ -43,8 +43,8 @@ export function formatPrice(value: string | number): string {
   });
 }
 
-export function getDrawdownSeverity(percent: number): "low" | "medium" | "high" {
-  if (percent < 5) return "low";
-  if (percent < 10) return "medium";
-  return "high";
+export function getDrawdownSeverity(percent: number): "medium" | "high" | undefined {
+  if (percent >= 15) return "high";
+  if (percent >= 10) return "medium";
+  return undefined;
 }
