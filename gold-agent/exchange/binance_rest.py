@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from decimal import Decimal, ROUND_DOWN
 
 from binance_sdk_spot.rest_api import SpotRestAPI
 from binance_common.configuration import ConfigurationRestAPI
@@ -34,6 +35,8 @@ class BinanceRestClient:
 
     def __init__(self, api_key: str, api_secret: str, base_url: str) -> None:
         self._configured = bool(api_key and api_secret)
+        # Cache of symbol -> LOT_SIZE stepSize string fetched from exchange info.
+        self._lot_step_cache: dict[str, str] = {}
         if self._configured:
             self._client = SpotRestAPI(
                 ConfigurationRestAPI(
@@ -63,7 +66,7 @@ class BinanceRestClient:
             )
             return ExchangeBalance(balance="0", status=ExchangeBalanceStatus.ERROR)
 
-        for balance in response.data.balances:
+        for balance in response.data().balances:
             if balance.asset == "USDT":
                 return ExchangeBalance(
                     balance=balance.free,
@@ -75,6 +78,44 @@ class BinanceRestClient:
             "BinanceRestClient.fetch_usdt_balance: USDT not found in balances, returning 0"
         )
         return ExchangeBalance(balance="0", status=ExchangeBalanceStatus.OK)
+
+    async def _get_lot_step(self, symbol: str) -> str:
+        """Return the LOT_SIZE stepSize for a symbol, fetching and caching exchange info."""
+        if symbol in self._lot_step_cache:
+            return self._lot_step_cache[symbol]
+
+        try:
+            info = await asyncio.to_thread(self._client.exchange_info, symbol=symbol)
+            for sym_info in info.data().symbols:
+                if sym_info.symbol == symbol:
+                    for f in sym_info.filters:
+                        filter_dict = f if isinstance(f, dict) else vars(f)
+                        if filter_dict.get("filterType") == "LOT_SIZE":
+                            step = filter_dict.get("stepSize", "1")
+                            self._lot_step_cache[symbol] = step
+                            return step
+        except Exception as exc:
+            logger.warning(
+                "BinanceRestClient._get_lot_step: failed to fetch exchange info for %s: %s",
+                symbol,
+                exc,
+            )
+
+        # Fallback: no rounding applied.
+        self._lot_step_cache[symbol] = "1"
+        return "1"
+
+    @staticmethod
+    def _apply_lot_step(quantity: str, step: str) -> str:
+        """Truncate quantity down to the nearest LOT_SIZE step."""
+        step_dec = Decimal(step)
+        if step_dec <= 0:
+            return quantity
+        qty_dec = Decimal(quantity)
+        truncated = (qty_dec // step_dec) * step_dec
+        # Match decimal places of step for formatting.
+        decimal_places = abs(step_dec.normalize().as_tuple().exponent)
+        return f"{truncated:.{decimal_places}f}"
 
     async def place_limit_order(
         self,
@@ -105,11 +146,15 @@ class BinanceRestClient:
                 "api_key and api_secret must be set"
             )
 
+        step = await self._get_lot_step(symbol)
+        adjusted_quantity = self._apply_lot_step(quantity, step)
+
         logger.info(
-            "BinanceRestClient.place_limit_order: symbol=%s side=%s quantity=%s price=%s",
+            "BinanceRestClient.place_limit_order: symbol=%s side=%s quantity=%s->%s price=%s",
             symbol,
             side,
             quantity,
+            adjusted_quantity,
             price,
         )
 
@@ -121,12 +166,12 @@ class BinanceRestClient:
             side_enum,
             NewOrderTypeEnum.LIMIT,
             time_in_force=NewOrderTimeInForceEnum.GTC,
-            quantity=float(quantity),
+            quantity=float(adjusted_quantity),
             price=float(price),
         )
 
         # Binance returns order_id as an int; convert to str for the domain model.
-        external_order_id = str(response.data.order_id)
+        external_order_id = str(response.data().order_id)
 
         logger.info(
             "BinanceRestClient.place_limit_order: order placed — "
@@ -141,7 +186,7 @@ class BinanceRestClient:
             external_order_id=external_order_id,
             side=OrderSide(side),
             symbol=symbol,
-            quantity=quantity,
+            quantity=adjusted_quantity,
             price=price,
             status=OrderStatus.PENDING,
         )

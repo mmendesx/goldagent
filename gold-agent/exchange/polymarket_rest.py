@@ -4,10 +4,8 @@ Polymarket CLOB REST client for account data and order placement.
 Uses the synchronous ``py-clob-client`` ClobClient, bridged to async via
 ``asyncio.to_thread`` so the event loop is never blocked.
 
-Level 2 authentication (required for balance queries and order placement)
-needs both API credentials *and* a private key for on-chain signing.
-Pass the wallet's private key as ``private_key``; leave it empty to run in
-read-only / unconfigured mode.
+L2 credentials are derived from the private key via ``create_or_derive_api_creds``
+rather than passed manually, which is the correct flow for all signature types.
 """
 
 from __future__ import annotations
@@ -17,11 +15,12 @@ import logging
 
 from py_clob_client.client import ClobClient
 from py_clob_client.clob_types import (
-    ApiCreds,
     AssetType,
     BalanceAllowanceParams,
     OrderArgs,
+    OrderType,
 )
+from py_clob_client.constants import POLYGON
 from py_clob_client.order_builder.constants import BUY, SELL
 
 from domain.types import ExchangeBalance, ExchangeBalanceStatus, Order, OrderSide, OrderStatus
@@ -29,77 +28,84 @@ from domain.types import ExchangeBalance, ExchangeBalanceStatus, Order, OrderSid
 logger = logging.getLogger(__name__)
 
 _POLYMARKET_CLOB_HOST = "https://clob.polymarket.com"
-_POLYGON_CHAIN_ID = 137
 
 
 class PolymarketRestClient:
     """REST client for Polymarket CLOB balance queries and order placement.
 
+    L2 API credentials are derived from ``private_key`` via
+    ``ClobClient.create_or_derive_api_creds()`` at construction time.
+    Manually configured API key/secret/passphrase are not required.
+
     Args:
-        api_key:        Polymarket L2 API key.
-        api_secret:     Polymarket L2 API secret.
-        passphrase:     Polymarket L2 API passphrase.
-        private_key:    Wallet private key (hex, ``0x``-prefixed) used by the
-                        py-clob-client for on-chain order signing.  Required for
-                        L2 operations; leave empty for unconfigured mode.
+        private_key:    Wallet private key (hex, ``0x``-prefixed).
+                        Required for L2 operations; leave empty for unconfigured mode.
         wallet_address: Wallet address (informational; stored for logging).
+        signature_type: 0=EOA, 1=Email/Magic login, 2=Browser wallet/Safe.
+        funder:         Proxy/safe address holding USDC collateral.
+                        Required for signature_type 1 and 2.
     """
 
     def __init__(
         self,
-        api_key: str,
-        api_secret: str,
-        passphrase: str,
         private_key: str,
         wallet_address: str,
         signature_type: int = 0,
         funder: str = "",
     ) -> None:
-        self._configured = bool(api_key and api_secret and passphrase and private_key)
+        self._configured = False
         self._wallet_address = wallet_address
-        self._signature_type = signature_type
-        self._funder = funder
-        # Circuit breaker: once auth fails, stop hammering the API until restart.
         self._auth_failed = False
 
-        if self._configured:
-            creds = ApiCreds(
-                api_key=api_key,
-                api_secret=api_secret,
-                api_passphrase=passphrase,
+        if not private_key:
+            logger.info("PolymarketRestClient: private_key not set — running unconfigured")
+            return
+
+        if signature_type != 0 and not funder:
+            logger.warning(
+                "PolymarketRestClient: signature_type=%d requires POLYMARKET_FUNDER — "
+                "auth will fail without it",
+                signature_type,
             )
-            # signature_type=0 (EOA) needs no funder.
-            # signature_type=1 (email/magic) or 2 (browser wallet) require funder
-            # to be the proxy/safe address that actually holds USDC collateral.
-            client_kwargs: dict = {
-                "host": _POLYMARKET_CLOB_HOST,
-                "chain_id": _POLYGON_CHAIN_ID,
-                "key": private_key,
-                "creds": creds,
-            }
-            if signature_type != 0:
-                if not funder:
-                    logger.warning(
-                        "PolymarketRestClient: signature_type=%d requires a funder "
-                        "address but POLYMARKET_FUNDER is empty; auth will fail",
-                        signature_type,
-                    )
-                client_kwargs["signature_type"] = signature_type
-                client_kwargs["funder"] = funder
+
+        client_kwargs: dict = {
+            "host": _POLYMARKET_CLOB_HOST,
+            "chain_id": POLYGON,
+            "key": private_key,
+        }
+        if signature_type != 0:
+            client_kwargs["signature_type"] = signature_type
+            client_kwargs["funder"] = funder
+
+        try:
             self._client = ClobClient(**client_kwargs)
+            creds = self._client.create_or_derive_api_creds()
+            self._client.set_api_creds(creds)
+            self._configured = True
+            logger.info(
+                "PolymarketRestClient: L2 credentials derived — wallet=%s signature_type=%d",
+                wallet_address,
+                signature_type,
+            )
+        except Exception as exc:
+            logger.error(
+                "PolymarketRestClient: failed to derive L2 credentials: %s — "
+                "running unconfigured",
+                exc,
+            )
 
     async def fetch_usdc_balance(self) -> ExchangeBalance:
         """Return the USDC collateral balance from the Polymarket CLOB API.
 
         Returns:
             ExchangeBalance with:
-            - ``status="not_configured"`` when credentials or private key are absent.
+            - ``status="not_configured"`` when private_key is absent or cred derivation failed.
             - ``status="ok"`` and the USDC balance string on success.
             - ``status="error"`` if the API call fails.
 
         On persistent auth failure (401) the client trips an in-memory circuit
         breaker so subsequent polls short-circuit without hitting the network.
-        Restart the process to re-test credentials.
+        Restart the process to re-derive credentials.
         """
         if not self._configured:
             return ExchangeBalance(balance="0", status=ExchangeBalanceStatus.NOT_CONFIGURED)
@@ -113,12 +119,11 @@ class PolymarketRestClient:
                 params=BalanceAllowanceParams(asset_type=AssetType.COLLATERAL),
             )
         except Exception as exc:
-            # Detect 401/unauthorized once and latch — don't spam logs every poll.
             msg = str(exc)
             if "401" in msg or "Unauthorized" in msg or "Invalid api key" in msg:
                 if not self._auth_failed:
                     logger.error(
-                        "PolymarketRestClient: auth failed (invalid api key). "
+                        "PolymarketRestClient: auth failed after credential derivation. "
                         "Disabling balance polling until restart. Error: %s",
                         exc,
                     )
@@ -161,7 +166,7 @@ class PolymarketRestClient:
         if not self._configured:
             raise RuntimeError(
                 "PolymarketRestClient.place_order: client is not configured — "
-                "api_key, api_secret, passphrase, and private_key must all be set"
+                "private_key must be set and credential derivation must succeed"
             )
 
         clob_side = BUY if side == "BUY" else SELL
@@ -174,8 +179,8 @@ class PolymarketRestClient:
             size,
         )
 
-        response = await asyncio.to_thread(
-            self._client.create_and_post_order,
+        order = await asyncio.to_thread(
+            self._client.create_order,
             OrderArgs(
                 token_id=token_id,
                 price=price,
@@ -183,9 +188,12 @@ class PolymarketRestClient:
                 side=clob_side,
             ),
         )
+        response = await asyncio.to_thread(
+            self._client.post_order,
+            order,
+            OrderType.GTC,
+        )
 
-        # py-clob-client returns the raw JSON dict from the CLOB API.
-        # Polymarket's POST /order response includes {"orderID": "..."}.
         external_order_id = str(response.get("orderID", "")) if response else ""
 
         logger.info(

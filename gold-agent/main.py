@@ -77,9 +77,6 @@ async def main() -> None:
         base_url=settings.binance_rest_api_url,
     )
     polymarket_rest = PolymarketRestClient(
-        api_key=settings.polymarket_api_key,
-        api_secret=settings.polymarket_api_secret,
-        passphrase=settings.polymarket_api_passphrase,
         private_key=settings.polymarket_private_key,
         wallet_address=settings.polymarket_wallet_address,
         signature_type=settings.polymarket_signature_type,
