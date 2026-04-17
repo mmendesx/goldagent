@@ -103,6 +103,24 @@ async def get_trades(
     return page.model_dump(by_alias=True)
 
 
+@router.get("/api/v1/positions/history")
+async def get_positions_history(
+    symbol: Optional[str] = Query(None),
+    limit: int = Query(50, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+):
+    """Return a paginated window of closed position history ordered by closedAt DESC."""
+    positions = await postgres.fetch_positions_history(symbol=symbol, limit=limit, offset=offset)
+    page: Paginated = Paginated(
+        items=positions,
+        limit=limit,
+        offset=offset,
+        count=offset + len(positions),
+        has_more=len(positions) == limit,
+    )
+    return page.model_dump(by_alias=True)
+
+
 @router.get("/api/v1/decisions")
 async def get_decisions(
     symbol: Optional[str] = Query(None),

@@ -667,6 +667,44 @@ async def fetch_closed_positions() -> list[Position]:
     return [_record_to_position(r) for r in rows]
 
 
+async def fetch_positions_history(
+    symbol: Optional[str] = None,
+    limit: int = 50,
+    offset: int = 0,
+) -> list[Position]:
+    """Fetch closed positions ordered by closed_at DESC, with optional symbol filter and pagination."""
+    pool = get_pool()
+    if symbol is not None:
+        query = """
+            SELECT id, symbol, side, entry_price, exit_price, quantity,
+                   take_profit_price, stop_loss_price,
+                   trailing_stop_distance, trailing_stop_price,
+                   realized_pnl, fee_total,
+                   status, close_reason, opened_at, closed_at
+            FROM positions
+            WHERE status = 'closed' AND symbol = $1
+            ORDER BY closed_at DESC
+            LIMIT $2
+            OFFSET $3
+        """
+        rows = await pool.fetch(query, symbol, limit, offset)
+    else:
+        query = """
+            SELECT id, symbol, side, entry_price, exit_price, quantity,
+                   take_profit_price, stop_loss_price,
+                   trailing_stop_distance, trailing_stop_price,
+                   realized_pnl, fee_total,
+                   status, close_reason, opened_at, closed_at
+            FROM positions
+            WHERE status = 'closed'
+            ORDER BY closed_at DESC
+            LIMIT $1
+            OFFSET $2
+        """
+        rows = await pool.fetch(query, limit, offset)
+    return [_record_to_position(r) for r in rows]
+
+
 # ---------------------------------------------------------------------------
 # Order repository
 # ---------------------------------------------------------------------------
