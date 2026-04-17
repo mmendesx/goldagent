@@ -4,8 +4,10 @@ import {
   createSeriesMarkers,
   CandlestickSeries,
   HistogramSeries,
+  LineStyle,
   type IChartApi,
   type ISeriesApi,
+  type IPriceLine,
   type ISeriesMarkersPluginApi,
   type SeriesMarker,
   type Time,
@@ -13,6 +15,8 @@ import {
 } from "lightweight-charts";
 import { useDashboardStore, candleKey, candleToChartCandle } from "../../store";
 import { restClient } from "../../api";
+import { useLiveTicker } from "../../hooks/useLiveTicker";
+import { Skeleton } from "../Skeleton/Skeleton";
 import { SymbolSelector } from "../SymbolSelector/SymbolSelector";
 import { IntervalButtons } from "../IntervalButtons/IntervalButtons";
 import type { ChartCandle } from "../../types";
@@ -34,16 +38,17 @@ function fetchReducer(_state: FetchState, action: FetchAction): FetchState {
   }
 }
 
-// Dark theme colors matching the dashboard design system
+// Dark theme hex values — lightweight-charts cannot read CSS variables
 const CHART_THEME = {
-  background: "#12121a",
-  textColor: "#e8e8f0",
-  gridColor: "#2a2a3a",
+  background: "#111318",
+  textColor: "#9aa0ac",
+  gridColor: "#1e2230",
+  borderColor: "#2c3040",
   upColor: "#22c55e",
   downColor: "#ef4444",
   volumeUpColor: "rgba(34, 197, 94, 0.3)",
   volumeDownColor: "rgba(239, 68, 68, 0.3)",
-  borderColor: "#2a2a3a",
+  priceLineColor: "#f59e0b",
 };
 
 export function PriceChart() {
@@ -51,8 +56,16 @@ export function PriceChart() {
   const chartRef = useRef<IChartApi | null>(null);
   const candlestickSeriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const volumeSeriesRef = useRef<ISeriesApi<"Histogram"> | null>(null);
+  const priceLineRef = useRef<IPriceLine | null>(null);
   const markersApiRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
-  const [{ isLoading, errorMessage }, dispatch] = useReducer(fetchReducer, { isLoading: true, errorMessage: null });
+  // Tracks the symbol:interval key for which setData was last called.
+  // When this matches current key we skip setData and use update() for WS ticks.
+  const seededKeyRef = useRef<string | null>(null);
+
+  const [{ isLoading, errorMessage }, dispatch] = useReducer(fetchReducer, {
+    isLoading: true,
+    errorMessage: null,
+  });
 
   const selectedSymbol = useDashboardStore((state) => state.selectedSymbol);
   const selectedInterval = useDashboardStore((state) => state.selectedInterval);
@@ -63,7 +76,9 @@ export function PriceChart() {
   const key = candleKey(selectedSymbol, selectedInterval);
   const candles = useDashboardStore((state) => state.candlesByKey[key]) ?? EMPTY_CANDLES;
 
-  // Initialize chart once — empty deps so this runs only on mount
+  const ticker = useLiveTicker(selectedSymbol);
+
+  // Initialize chart once on mount
   useEffect(() => {
     if (!containerRef.current) return;
 
@@ -108,12 +123,22 @@ export function PriceChart() {
       scaleMargins: { top: 0.8, bottom: 0 },
     });
 
-    // v5 markers API — must be created via createSeriesMarkers factory
+    // Create dashed price line for live ticker — updated via applyOptions, never recreated
+    const priceLine = candlestickSeries.createPriceLine({
+      price: 0,
+      color: CHART_THEME.priceLineColor,
+      lineWidth: 1,
+      lineStyle: LineStyle.Dashed,
+      axisLabelVisible: false,
+      title: "Live",
+    });
+
     const markersApi = createSeriesMarkers(candlestickSeries, []);
 
     chartRef.current = chart;
     candlestickSeriesRef.current = candlestickSeries;
     volumeSeriesRef.current = volumeSeries;
+    priceLineRef.current = priceLine;
     markersApiRef.current = markersApi;
 
     return () => {
@@ -122,7 +147,9 @@ export function PriceChart() {
       chartRef.current = null;
       candlestickSeriesRef.current = null;
       volumeSeriesRef.current = null;
+      priceLineRef.current = null;
       markersApiRef.current = null;
+      seededKeyRef.current = null;
     };
   }, []);
 
@@ -140,14 +167,18 @@ export function PriceChart() {
       .then((response) => {
         if (isCancelled) return;
         const chartCandles = response.items.map(candleToChartCandle);
-        // Sort ascending by time — backend may return DESC order
         chartCandles.sort((a, b) => a.time - b.time);
+        // Invalidate here so the upcoming store update triggers a full setData,
+        // not just update(lastCandle). Moving this to fetch-start would cause
+        // cached-symbol revisits to miss 499 candles on the incremental path.
+        seededKeyRef.current = null;
         setCandlesForKey(candleKey(selectedSymbol, selectedInterval), chartCandles);
         dispatch({ type: "success" });
       })
       .catch((error: unknown) => {
         if (isCancelled) return;
-        const message = error instanceof Error ? error.message : "Failed to load candles";
+        const message =
+          error instanceof Error ? error.message : "Failed to load candles";
         dispatch({ type: "error", message });
       });
 
@@ -156,28 +187,74 @@ export function PriceChart() {
     };
   }, [selectedSymbol, selectedInterval, setCandlesForKey]);
 
-  // Push candle data to chart whenever the store slice changes
+  // Push candle data to chart — full seed on key change, incremental update on WS tick
   useEffect(() => {
-    if (!candlestickSeriesRef.current || !volumeSeriesRef.current) return;
+    const candlestickSeries = candlestickSeriesRef.current;
+    const volumeSeries = volumeSeriesRef.current;
+    if (!candlestickSeries || !volumeSeries) return;
     if (candles.length === 0) return;
 
-    const candlestickData = candles.map((candle) => ({
-      time: candle.time as Time,
-      open: candle.open,
-      high: candle.high,
-      low: candle.low,
-      close: candle.close,
-    }));
+    const lastCandle = candles[candles.length - 1];
 
-    const volumeData = candles.map((candle) => ({
-      time: candle.time as Time,
-      value: candle.volume,
-      color: candle.close >= candle.open ? CHART_THEME.volumeUpColor : CHART_THEME.volumeDownColor,
-    }));
+    if (seededKeyRef.current !== key) {
+      // Full seed after symbol/interval change or initial fetch
+      const candlestickData = candles.map((c) => ({
+        time: c.time as Time,
+        open: c.open,
+        high: c.high,
+        low: c.low,
+        close: c.close,
+      }));
 
-    candlestickSeriesRef.current.setData(candlestickData);
-    volumeSeriesRef.current.setData(volumeData);
-  }, [candles]);
+      const volumeData = candles.map((c) => ({
+        time: c.time as Time,
+        value: c.volume,
+        color: c.close >= c.open ? CHART_THEME.volumeUpColor : CHART_THEME.volumeDownColor,
+      }));
+
+      candlestickSeries.setData(candlestickData);
+      volumeSeries.setData(volumeData);
+      seededKeyRef.current = key;
+    } else {
+      // Incremental update from WS candle_update — only push the last candle
+      candlestickSeries.update({
+        time: lastCandle.time as Time,
+        open: lastCandle.open,
+        high: lastCandle.high,
+        low: lastCandle.low,
+        close: lastCandle.close,
+      });
+
+      volumeSeries.update({
+        time: lastCandle.time as Time,
+        value: lastCandle.volume,
+        color:
+          lastCandle.close >= lastCandle.open
+            ? CHART_THEME.volumeUpColor
+            : CHART_THEME.volumeDownColor,
+      });
+    }
+  }, [candles, key]);
+
+  // Reset price line when symbol changes to avoid showing the previous symbol's price
+  // on the new symbol's candles before the first tick arrives.
+  useEffect(() => {
+    priceLineRef.current?.applyOptions({ price: 0, axisLabelVisible: false });
+  }, [selectedSymbol]);
+
+  // Update live price line when ticker changes — does NOT mutate candle data
+  useEffect(() => {
+    const priceLine = priceLineRef.current;
+    if (!priceLine) return;
+
+    if (ticker === null) {
+      // No ticker for this symbol yet — hide the label but keep the line object alive
+      priceLine.applyOptions({ price: 0, axisLabelVisible: false });
+      return;
+    }
+
+    priceLine.applyOptions({ price: ticker.price, axisLabelVisible: true });
+  }, [ticker]);
 
   // Rebuild trade markers whenever positions or selected symbol change
   useEffect(() => {
@@ -188,7 +265,6 @@ export function PriceChart() {
     const symbolOpenPositions = openPositions.filter((p) => p.symbol === selectedSymbol);
     const symbolClosedPositions = closedPositions.filter((p) => p.symbol === selectedSymbol);
 
-    // Entry markers for open positions: yellow down arrow above bar
     for (const position of symbolOpenPositions) {
       const openedAtTime = Math.floor(new Date(position.openedAt).getTime() / 1000) as Time;
       markers.push({
@@ -196,24 +272,21 @@ export function PriceChart() {
         position: "aboveBar",
         color: "#eab308",
         shape: "arrowDown",
-        text: "▼ OPEN",
+        text: "OPEN",
       });
     }
 
-    // Entry + exit markers for closed positions
     for (const position of symbolClosedPositions) {
       const openedAtTime = Math.floor(new Date(position.openedAt).getTime() / 1000) as Time;
 
-      // Entry — red down arrow labeled SHORT
       markers.push({
         time: openedAtTime,
         position: "aboveBar",
         color: "#ef4444",
         shape: "arrowDown",
-        text: "▼ SHORT",
+        text: "SHORT",
       });
 
-      // Exit — shape and color depend on the close reason
       if (position.closedAt && position.closeReason) {
         const closedAtTime = Math.floor(new Date(position.closedAt).getTime() / 1000) as Time;
 
@@ -223,31 +296,24 @@ export function PriceChart() {
             position: "belowBar",
             color: "#22c55e",
             shape: "arrowUp",
-            text: "▲ TAKE_PROFIT",
+            text: "TAKE_PROFIT",
           });
-        } else if (position.closeReason === "STOP_LOSS") {
+        } else if (
+          position.closeReason === "STOP_LOSS" ||
+          position.closeReason === "TRAILING_STOP"
+        ) {
           markers.push({
             time: closedAtTime,
             position: "aboveBar",
             color: "#ef4444",
             shape: "circle",
-            text: "● STOP_LOSS",
-          });
-        } else if (position.closeReason === "TRAILING_STOP") {
-          markers.push({
-            time: closedAtTime,
-            position: "aboveBar",
-            color: "#ef4444",
-            shape: "circle",
-            text: "● TRAILING_STOP",
+            text: position.closeReason,
           });
         }
       }
     }
 
-    // lightweight-charts requires markers sorted ascending by time
     markers.sort((a, b) => (a.time as number) - (b.time as number));
-
     markersApiRef.current.setMarkers(markers);
   }, [openPositions, closedPositions, selectedSymbol]);
 
@@ -258,9 +324,15 @@ export function PriceChart() {
         <IntervalButtons />
       </div>
       <div className="price-chart-container" ref={containerRef}>
-        {isLoading && <div className="price-chart-overlay">Loading…</div>}
+        {isLoading && (
+          <div className="price-chart-skeleton">
+            <Skeleton variant="block" height="400px" />
+          </div>
+        )}
         {errorMessage && (
-          <div className="price-chart-overlay price-chart-error">{errorMessage}</div>
+          <div className="price-chart-overlay price-chart-error" role="alert">
+            {errorMessage}
+          </div>
         )}
       </div>
     </div>

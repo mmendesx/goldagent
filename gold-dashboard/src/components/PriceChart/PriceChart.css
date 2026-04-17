@@ -22,6 +22,19 @@
   overflow: hidden;
 }
 
+/* Skeleton fills the container while the initial fetch is in flight */
+.price-chart-skeleton {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+}
+
+.price-chart-skeleton .skeleton {
+  width: 100%;
+  height: 100%;
+  border-radius: 0;
+}
+
 .price-chart-overlay {
   position: absolute;
   inset: 0;
