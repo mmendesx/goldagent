@@ -18,7 +18,7 @@ export function LiveNumber({
   value,
   from = 0,
   format = (n) => n.toFixed(2),
-  duration = 1,
+  duration = 0.8,
   decimalPlaces = 2,
   className,
 }: LiveNumberProps) {

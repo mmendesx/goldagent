@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useDashboardStore, computeOpenPositionsWithLivePnl } from "../../store";
 import { restClient } from "../../api";
 import { formatPrice } from "../../utils";
@@ -9,6 +9,7 @@ import "./OpenPositions.css";
 const REFRESH_INTERVAL_MILLISECONDS = 3000;
 
 export function OpenPositions() {
+  const prefersReducedMotion = useReducedMotion();
   const rawOpenPositions = useDashboardStore((s) => s.openPositions);
   const lastPrice = useDashboardStore((s) => s.lastPrice);
   const setOpenPositions = useDashboardStore((state) => state.setOpenPositions);
@@ -87,10 +88,10 @@ export function OpenPositions() {
                   return (
                     <motion.tr
                       key={position.id ?? `${position.symbol}-${i}`}
-                      initial={{ opacity: 0, y: 4 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0 }}
-                      transition={{ duration: 0.15, delay: i * 0.04 }}
+                      initial={prefersReducedMotion ? false : { opacity: 0, y: 4 }}
+                      animate={prefersReducedMotion ? undefined : { opacity: 1, y: 0 }}
+                      exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0 }}
+                      transition={prefersReducedMotion ? { duration: 0 } : { duration: 0.15, delay: i * 0.04 }}
                     >
                       <td className="symbol-cell">{position.symbol}</td>
                       <td>
