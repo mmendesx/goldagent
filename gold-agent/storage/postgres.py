@@ -10,9 +10,8 @@ Schema notes (source of truth: gold-backend/migrations/):
   on insert; treated as if it maps to decision_id when the field is set.
   TODO: align Order model to match DB once caller convention is settled.
 - positions: DB column is `fee_total`; mapped to Position.fees.
-- decisions: DB has no `reasoning` column (it stores signal floats instead).
-  Decision.reasoning is not persisted.
-  TODO: add `reasoning TEXT` column to decisions via migration if needed.
+- decisions: DB has a `reasoning TEXT` (nullable) column. Decision.reasoning
+  is persisted on insert and returned on fetch.
 - portfolio_snapshots: DB uses `snapshot_at`; PortfolioMetrics has no timestamp
   field, so it is written as NOW() and not round-tripped on fetch.
 """
@@ -131,7 +130,7 @@ def _record_to_decision(r: asyncpg.Record) -> Decision:
         symbol=r["symbol"],
         action=r["action"],
         confidence=r["confidence"],
-        reasoning=None,            # not stored in DB — see module docstring
+        reasoning=r["reasoning"],
         execution_status=r["execution_status"],
         rejection_reason=r["rejection_reason"],
         composite_score=str(r["composite_score"]) if r["composite_score"] is not None else None,
@@ -375,17 +374,12 @@ async def fetch_indicator(symbol: str, interval: str, candle_open_time: datetime
 # ---------------------------------------------------------------------------
 
 async def save_decision(decision: Decision) -> int:
-    """
-    Persist a decision and return its generated ID.
-
-    Note: Decision.reasoning is not persisted — the decisions table has no
-    reasoning column. A migration is required to store free-text reasoning.
-    """
+    """Persist a decision and return its generated ID."""
     query = """
         INSERT INTO decisions (
-            symbol, action, confidence, execution_status,
+            symbol, action, confidence, reasoning, execution_status,
             rejection_reason, composite_score, is_dry_run
-        ) VALUES ($1, $2::decision_action, $3, $4::decision_execution_status, $5, $6, $7)
+        ) VALUES ($1, $2::decision_action, $3, $4, $5::decision_execution_status, $6, $7, $8)
         RETURNING id
     """
     pool = get_pool()
@@ -394,6 +388,7 @@ async def save_decision(decision: Decision) -> int:
         decision.symbol,
         decision.action.value,
         decision.confidence,
+        decision.reasoning,
         decision.execution_status,
         decision.rejection_reason,
         decision.composite_score,
@@ -421,7 +416,7 @@ async def fetch_decisions(
     pool = get_pool()
     if symbol is not None:
         query = """
-            SELECT id, symbol, action, confidence, execution_status,
+            SELECT id, symbol, action, confidence, reasoning, execution_status,
                    rejection_reason, composite_score, is_dry_run, created_at
             FROM decisions
             WHERE symbol = $1
@@ -432,7 +427,7 @@ async def fetch_decisions(
         rows = await pool.fetch(query, symbol, limit, offset)
     else:
         query = """
-            SELECT id, symbol, action, confidence, execution_status,
+            SELECT id, symbol, action, confidence, reasoning, execution_status,
                    rejection_reason, composite_score, is_dry_run, created_at
             FROM decisions
             ORDER BY created_at DESC
@@ -446,7 +441,7 @@ async def fetch_decisions(
 async def fetch_recent_decisions(symbol: str, limit: int = 5) -> list[Decision]:
     """Fetch the last `limit` decisions for a symbol (used to provide LLM context)."""
     query = """
-        SELECT id, symbol, action, confidence, execution_status,
+        SELECT id, symbol, action, confidence, reasoning, execution_status,
                rejection_reason, composite_score, is_dry_run, created_at
         FROM decisions
         WHERE symbol = $1
