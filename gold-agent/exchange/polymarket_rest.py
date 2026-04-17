@@ -52,9 +52,13 @@ class PolymarketRestClient:
         passphrase: str,
         private_key: str,
         wallet_address: str,
+        signature_type: int = 0,
+        funder: str = "",
     ) -> None:
         self._configured = bool(api_key and api_secret and passphrase and private_key)
         self._wallet_address = wallet_address
+        self._signature_type = signature_type
+        self._funder = funder
         # Circuit breaker: once auth fails, stop hammering the API until restart.
         self._auth_failed = False
 
@@ -64,12 +68,25 @@ class PolymarketRestClient:
                 api_secret=api_secret,
                 api_passphrase=passphrase,
             )
-            self._client = ClobClient(
-                host=_POLYMARKET_CLOB_HOST,
-                chain_id=_POLYGON_CHAIN_ID,
-                key=private_key,
-                creds=creds,
-            )
+            # signature_type=0 (EOA) needs no funder.
+            # signature_type=1 (email/magic) or 2 (browser wallet) require funder
+            # to be the proxy/safe address that actually holds USDC collateral.
+            client_kwargs: dict = {
+                "host": _POLYMARKET_CLOB_HOST,
+                "chain_id": _POLYGON_CHAIN_ID,
+                "key": private_key,
+                "creds": creds,
+            }
+            if signature_type != 0:
+                if not funder:
+                    logger.warning(
+                        "PolymarketRestClient: signature_type=%d requires a funder "
+                        "address but POLYMARKET_FUNDER is empty; auth will fail",
+                        signature_type,
+                    )
+                client_kwargs["signature_type"] = signature_type
+                client_kwargs["funder"] = funder
+            self._client = ClobClient(**client_kwargs)
 
     async def fetch_usdc_balance(self) -> ExchangeBalance:
         """Return the USDC collateral balance from the Polymarket CLOB API.

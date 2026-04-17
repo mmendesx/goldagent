@@ -82,6 +82,8 @@ async def main() -> None:
         passphrase=settings.polymarket_api_passphrase,
         private_key=settings.polymarket_private_key,
         wallet_address=settings.polymarket_wallet_address,
+        signature_type=settings.polymarket_signature_type,
+        funder=settings.polymarket_funder,
     )
 
     # --- WebSocket hub ---
