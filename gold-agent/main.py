@@ -205,7 +205,11 @@ async def main() -> None:
                 open_positions = await postgres.fetch_open_positions(symbol=candle.symbol)
                 risk_result = risk_gate.check(decision, portfolio, len(open_positions))
 
-                if risk_result.is_allowed and not settings.gold_dry_run:
+                if (
+                    risk_result.is_allowed
+                    and not settings.gold_dry_run
+                    and decision.action in (DecisionAction.BUY, DecisionAction.SELL)
+                ):
                     balance = float(portfolio.balance) if portfolio else 10_000.0
                     entry_price = float(candle.close_price)
                     pct = settings.gold_max_position_size_percent / 100.0
