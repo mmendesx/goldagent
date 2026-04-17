@@ -269,7 +269,18 @@ All list endpoints except `GET /api/v1/positions` return the paginated envelope.
 ### Accessibility
 - **Automated**: `npm run test:e2e` (Playwright + axe-core). Runs against live dev server at `http://localhost:5173`.
 - **Lighthouse**: `npm run lighthouse` — asserts accessibility score ≥0.95.
-- **Manual**: VoiceOver pass required before production deploy. Coverage: landmarks, tablist announcement, live-region balance, skip-link, error alert.
+- **Manual VoiceOver smoke (macOS Safari)** — required before production deploy:
+  - [ ] Navigation landmarks announced: banner, main, navigation
+  - [ ] Exchange tabs (Binance/Polymarket) announced as links in navigation
+  - [ ] Inner tab list (Chart/Overview/Decisions) announced as tablist with selected state
+  - [ ] Arrow-key tab cycling works with VoiceOver active
+  - [ ] Skip link announced and activates focus on main region
+  - [ ] MetricsBar balance announces via live region on data update
+  - [ ] ConnectionBadge state changes announced via polite live region
+  - [ ] Error boundary fallback announced via alert role
+  - [ ] ChartSettings dialog: announced as dialog, focus trapped, ESC closes
+  - [ ] Table captions read on table entry (Open Positions, Trade History, Decision Log)
+  - Result: ⬜ PASS / ⬜ FAIL (fill in after manual pass)
 
 ### Reduced Motion
 - JS animations: `MotionConfig reducedMotion="user"` in App.tsx handles motion/react animations.
