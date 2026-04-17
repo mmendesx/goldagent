@@ -17,6 +17,19 @@
   gap: 16px;
 }
 
+.dashboard-header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+  padding: 8px 20px;
+}
+
+.page-shell__main [role="tabpanel"] {
+  padding: 20px;
+  background-color: var(--color-bg);
+}
+
 
 .exchange-tabs {
   display: flex;

@@ -1,50 +1,55 @@
-import { NavLink, Routes, Route, Navigate } from "react-router-dom";
 import { PriceChart } from "../../components/PriceChart/PriceChart";
 import { OpenPositions } from "../../components/OpenPositions/OpenPositions";
 import { TradeHistory } from "../../components/TradeHistory";
 import { DecisionLog } from "../../components/DecisionLog/DecisionLog";
 import { ErrorBoundary } from "../../components/ErrorBoundary";
-import "./Dashboard.css";
+import { AnimatedTabs } from "../../design-system";
+
+const binanceTabs = [
+  {
+    value: "chart",
+    label: "Chart",
+    content: (
+      <ErrorBoundary>
+        <PriceChart exchange="binance" />
+      </ErrorBoundary>
+    ),
+  },
+  {
+    value: "positions",
+    label: "Open Positions",
+    content: (
+      <ErrorBoundary>
+        <OpenPositions />
+      </ErrorBoundary>
+    ),
+  },
+  {
+    value: "history",
+    label: "Trade History",
+    content: (
+      <ErrorBoundary>
+        <TradeHistory />
+      </ErrorBoundary>
+    ),
+  },
+  {
+    value: "decisions",
+    label: "Decision Log",
+    content: (
+      <ErrorBoundary>
+        <DecisionLog />
+      </ErrorBoundary>
+    ),
+  },
+];
 
 export function BinanceView() {
   return (
-    <>
-      <nav className="view-tabs" aria-label="Binance sections">
-        <NavLink
-          to="/binance/chart"
-          className={({ isActive }) => (isActive ? "tab-link active" : "tab-link")}
-        >
-          Chart
-        </NavLink>
-        <NavLink
-          to="/binance/positions"
-          className={({ isActive }) => (isActive ? "tab-link active" : "tab-link")}
-        >
-          Open Positions
-        </NavLink>
-        <NavLink
-          to="/binance/history"
-          className={({ isActive }) => (isActive ? "tab-link active" : "tab-link")}
-        >
-          Trade History
-        </NavLink>
-        <NavLink
-          to="/binance/decisions"
-          className={({ isActive }) => (isActive ? "tab-link active" : "tab-link")}
-        >
-          Decision Log
-        </NavLink>
-      </nav>
-
-      <main className="dashboard-content">
-        <Routes>
-          <Route path="chart" element={<ErrorBoundary><PriceChart exchange="binance" /></ErrorBoundary>} />
-          <Route path="positions" element={<ErrorBoundary><OpenPositions /></ErrorBoundary>} />
-          <Route path="history" element={<ErrorBoundary><TradeHistory /></ErrorBoundary>} />
-          <Route path="decisions" element={<ErrorBoundary><DecisionLog /></ErrorBoundary>} />
-          <Route path="*" element={<Navigate to="/binance/chart" replace />} />
-        </Routes>
-      </main>
-    </>
+    <AnimatedTabs
+      tabs={binanceTabs}
+      defaultValue="chart"
+      variant="highlight"
+    />
   );
 }

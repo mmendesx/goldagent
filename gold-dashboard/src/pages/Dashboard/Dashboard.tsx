@@ -3,9 +3,10 @@ import { NavLink, Routes, Route, Navigate } from "react-router-dom";
 import { useWebSocketLifecycle } from "../../hooks";
 import { useDashboardStore } from "../../store";
 import { restClient } from "../../api";
-import type { ConnectionState } from "../../api";
 import { MetricsBar } from "../../components/MetricsBar";
+import { ConnectionBadge } from "../../components/ConnectionBadge/ConnectionBadge";
 import { ErrorBoundary } from "../../components/ErrorBoundary";
+import { PageShell, ThemeToggle } from "../../design-system";
 import { BinanceView } from "./BinanceView";
 import { PolymarketView } from "./PolymarketView";
 import "./Dashboard.css";
@@ -13,7 +14,6 @@ import "./Dashboard.css";
 export function Dashboard() {
   useWebSocketLifecycle();
 
-  const connectionState = useDashboardStore((s) => s.connectionState);
   const setMetrics = useDashboardStore((state) => state.setMetrics);
   const setOpenPositions = useDashboardStore((state) => state.setOpenPositions);
   const setClosedPositions = useDashboardStore((state) => state.setClosedPositions);
@@ -40,15 +40,20 @@ export function Dashboard() {
   }, [setClosedPositions]);
 
   return (
-    <div className="dashboard">
-      <header className="dashboard-metrics">
-        <ErrorBoundary>
-          <MetricsBar />
-        </ErrorBoundary>
-        <ConnectionBadge state={connectionState} />
-      </header>
-
-      <nav className="exchange-tabs" aria-label="Exchange">
+    <PageShell
+      header={
+        <>
+          <ErrorBoundary>
+            <MetricsBar />
+          </ErrorBoundary>
+          <div className="dashboard-header-right">
+            <ThemeToggle />
+            <ConnectionBadge />
+          </div>
+        </>
+      }
+    >
+      <nav className="exchange-tabs" role="navigation" aria-label="Exchange">
         <NavLink to="/binance" className={({ isActive }) => (isActive ? "exchange-tab active" : "exchange-tab")}>
           Binance
         </NavLink>
@@ -62,26 +67,6 @@ export function Dashboard() {
         <Route path="/polymarket/*" element={<PolymarketView />} />
         <Route path="/" element={<Navigate to="/binance/chart" replace />} />
       </Routes>
-    </div>
-  );
-}
-
-interface ConnectionBadgeProps {
-  state: ConnectionState;
-}
-
-function ConnectionBadge({ state }: ConnectionBadgeProps) {
-  const label =
-    state === "open"
-      ? "Live"
-      : state === "connecting" || state === "reconnecting"
-      ? "Connecting\u2026"
-      : "Offline";
-
-  return (
-    <div className={`connection-badge connection-badge--${state}`} aria-live="polite" aria-label={`Connection status: ${label}`}>
-      <span className="connection-badge__dot" aria-hidden="true" />
-      <span className="connection-badge__label">{label}</span>
-    </div>
+    </PageShell>
   );
 }
