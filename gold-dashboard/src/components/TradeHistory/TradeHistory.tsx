@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { restClient } from "../../api";
 import { useListFetch } from "../../hooks/useListFetch";
 import { formatPrice } from "../../utils";
-import { VisuallyHidden } from "../../design-system";
+import { Skeleton, SkeletonContainer, VisuallyHidden } from "../../design-system";
 import type { TradingSymbol } from "../../types";
 import "./TradeHistory.css";
 
@@ -65,83 +65,79 @@ export function TradeHistory() {
         </div>
       </div>
 
-      {positions.length > 0 && (
-        <div className="trade-history-table-container">
-          <table className="trade-history-table">
-            <caption><VisuallyHidden>Trade History</VisuallyHidden></caption>
-            <thead>
-              <tr>
-                <th scope="col">Closed At</th>
-                <th scope="col">Symbol</th>
-                <th scope="col">Side</th>
-                <th scope="col">Entry</th>
-                <th scope="col">Exit</th>
-                <th scope="col">Quantity</th>
-                <th scope="col">P&amp;L</th>
-                <th scope="col">Reason</th>
-              </tr>
-            </thead>
-            <tbody>
-              <AnimatePresence>
-                {filteredPositions.map((position, i) => {
-                  const realizedPnl = position.realizedPnl ?? "0";
-                  const realizedPnlNumeric = parseFloat(realizedPnl);
-                  const pnlClassName = realizedPnlNumeric > 0 ? "pnl-positive" : realizedPnlNumeric < 0 ? "pnl-negative" : "pnl-neutral";
-                  const sideClassName = position.side === "LONG" ? "side-long" : "side-short";
+      <SkeletonContainer busy={loading}>
+        {loading ? (
+          <Skeleton lines={5} className="trade-history-skeleton" />
+        ) : error ? (
+          <div className="trade-history-error" role="alert">
+            <span>{error}</span>
+            <button type="button" onClick={refetch} className="trade-history-retry">Retry</button>
+          </div>
+        ) : filteredPositions.length === 0 ? (
+          <div className="trade-history-empty">
+            {symbolFilter === "ALL"
+              ? "No closed trades yet. History will appear after the first exit."
+              : `No closed trades for ${symbolFilter}.`}
+          </div>
+        ) : (
+          <div className="trade-history-table-container">
+            <table className="trade-history-table">
+              <caption><VisuallyHidden>Trade History</VisuallyHidden></caption>
+              <thead>
+                <tr>
+                  <th scope="col">Closed At</th>
+                  <th scope="col">Symbol</th>
+                  <th scope="col">Side</th>
+                  <th scope="col">Entry</th>
+                  <th scope="col">Exit</th>
+                  <th scope="col">Quantity</th>
+                  <th scope="col">P&amp;L</th>
+                  <th scope="col">Reason</th>
+                </tr>
+              </thead>
+              <tbody>
+                <AnimatePresence>
+                  {filteredPositions.map((position, i) => {
+                    const realizedPnl = position.realizedPnl ?? "0";
+                    const realizedPnlNumeric = parseFloat(realizedPnl);
+                    const pnlClassName = realizedPnlNumeric > 0 ? "pnl-positive" : realizedPnlNumeric < 0 ? "pnl-negative" : "pnl-neutral";
+                    const sideClassName = position.side === "LONG" ? "side-long" : "side-short";
 
-                  return (
-                    <motion.tr
-                      key={position.id ?? `${position.symbol}-${i}`}
-                      initial={{ opacity: 0, y: 4 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0 }}
-                      transition={{ duration: 0.15, delay: i * 0.04 }}
-                    >
-                      <td>{position.closedAt ? formatDateTime(position.closedAt) : "—"}</td>
-                      <td className="symbol-cell">{position.symbol}</td>
-                      <td>
-                        <span className={`side-badge ${sideClassName}`}>{position.side}</span>
-                      </td>
-                      <td className="numeric-cell">{formatPrice(position.entryPrice)}</td>
-                      <td className="numeric-cell">{position.exitPrice ? formatPrice(position.exitPrice) : "—"}</td>
-                      <td className="numeric-cell">{formatPrice(position.quantity)}</td>
-                      <td className={`numeric-cell ${pnlClassName}`}>
-                        {realizedPnlNumeric >= 0 ? "+" : ""}{formatPrice(realizedPnl)}
-                      </td>
-                      <td>
-                        {position.closeReason && (
-                          <span className={`close-reason close-reason--${position.closeReason.toLowerCase().replace(/_/g, "-")}`}>
-                            {position.closeReason.replace(/_/g, " ")}
-                          </span>
-                        )}
-                      </td>
-                    </motion.tr>
-                  );
-                })}
-              </AnimatePresence>
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {error && (
-        <div className="trade-history-error" role="alert">
-          <span>{error}</span>
-          <button type="button" onClick={refetch} className="trade-history-retry">Retry</button>
-        </div>
-      )}
-
-      {!error && loading && positions.length === 0 && (
-        <div className="trade-history-empty">Loading…</div>
-      )}
-
-      {!error && !loading && filteredPositions.length === 0 && (
-        <div className="trade-history-empty">
-          {symbolFilter === "ALL"
-            ? "No closed trades yet. History will appear after the first exit."
-            : `No closed trades for ${symbolFilter}.`}
-        </div>
-      )}
+                    return (
+                      <motion.tr
+                        key={position.id ?? `${position.symbol}-${i}`}
+                        initial={{ opacity: 0, y: 4 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.15, delay: i * 0.04 }}
+                      >
+                        <td>{position.closedAt ? formatDateTime(position.closedAt) : "—"}</td>
+                        <td className="symbol-cell">{position.symbol}</td>
+                        <td>
+                          <span className={`side-badge ${sideClassName}`}>{position.side}</span>
+                        </td>
+                        <td className="numeric-cell">{formatPrice(position.entryPrice)}</td>
+                        <td className="numeric-cell">{position.exitPrice ? formatPrice(position.exitPrice) : "—"}</td>
+                        <td className="numeric-cell">{formatPrice(position.quantity)}</td>
+                        <td className={`numeric-cell ${pnlClassName}`}>
+                          {realizedPnlNumeric >= 0 ? "+" : ""}{formatPrice(realizedPnl)}
+                        </td>
+                        <td>
+                          {position.closeReason && (
+                            <span className={`close-reason close-reason--${position.closeReason.toLowerCase().replace(/_/g, "-")}`}>
+                              {position.closeReason.replace(/_/g, " ")}
+                            </span>
+                          )}
+                        </td>
+                      </motion.tr>
+                    );
+                  })}
+                </AnimatePresence>
+              </tbody>
+            </table>
+          </div>
+        )}
+      </SkeletonContainer>
     </div>
   );
 }

@@ -1,13 +1,13 @@
 .offline-banner {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--space-2);
   width: 100%;
-  padding: 10px 20px;
-  background-color: var(--color-negative, #e74c3c);
-  color: #fff;
-  font-size: 13px;
-  font-weight: 600;
+  padding: var(--space-2) var(--space-5);
+  background-color: color-mix(in srgb, var(--color-accent-warning) 20%, var(--color-bg-elevated));
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
   flex-shrink: 0;
   box-sizing: border-box;
 }
@@ -17,7 +17,7 @@
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background-color: #fff;
+  background-color: var(--color-accent-warning);
   opacity: 0.9;
   animation: offline-pulse 1.2s ease-in-out infinite;
   flex-shrink: 0;
@@ -29,7 +29,7 @@
 
 .offline-banner__attempts {
   opacity: 0.85;
-  font-weight: 500;
+  font-weight: var(--font-weight-normal, 400);
 }
 
 @keyframes offline-pulse {

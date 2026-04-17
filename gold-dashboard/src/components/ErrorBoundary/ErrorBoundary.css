@@ -3,37 +3,23 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 12px;
-  padding: 24px;
-  background: rgba(239, 68, 68, 0.08);
-  border: 1px solid rgba(239, 68, 68, 0.25);
-  border-radius: 8px;
+  gap: var(--space-3);
+  padding: var(--space-6);
+  background: var(--color-bg-elevated);
+  border: 1px solid color-mix(in srgb, var(--color-accent-danger) 25%, transparent);
+  border-radius: var(--radius-md);
   min-height: 80px;
 }
 
 .error-boundary__message {
-  color: #fca5a5;
-  font-size: 0.875rem;
+  color: var(--color-accent-danger);
+  font-size: var(--font-size-sm);
   text-align: center;
   margin: 0;
 }
 
-.error-boundary__retry {
-  padding: 6px 16px;
-  background: rgba(239, 68, 68, 0.2);
-  border: 1px solid rgba(239, 68, 68, 0.4);
-  border-radius: 6px;
-  color: #fca5a5;
-  font-size: 0.8rem;
-  cursor: pointer;
-  transition: background 0.15s;
-}
-
-.error-boundary__retry:hover {
-  background: rgba(239, 68, 68, 0.35);
-}
-
-.error-boundary__retry:focus-visible {
-  outline: 2px solid #ef4444;
-  outline-offset: 2px;
+.error-boundary__actions {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
 }

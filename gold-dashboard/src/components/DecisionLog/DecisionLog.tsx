@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { useDashboardStore } from "../../store";
 import { restClient } from "../../api";
 import { useListFetch } from "../../hooks/useListFetch";
-import { VisuallyHidden } from "../../design-system";
+import { Skeleton, SkeletonContainer, VisuallyHidden } from "../../design-system";
 import type { Decision, TradingSymbol } from "../../types";
 import "./DecisionLog.css";
 
@@ -33,6 +33,9 @@ export function DecisionLog() {
     ? decisions
     : decisions.filter((decision) => decision.symbol === symbolFilter);
 
+  // Show skeleton only on the initial load when there's nothing in the store yet
+  const isInitialLoading = loading && decisions.length === 0;
+
   return (
     <div className="decision-log">
       <div className="decision-log-controls">
@@ -53,48 +56,44 @@ export function DecisionLog() {
         </div>
       </div>
 
-      {filteredDecisions.length > 0 && (
-        <div className="decision-log-table-container">
-          <table className="decision-log-table">
-            <caption><VisuallyHidden>Decision Log</VisuallyHidden></caption>
-            <thead>
-              <tr>
-                <th scope="col">Time</th>
-                <th scope="col">Symbol</th>
-                <th scope="col">Action</th>
-                <th scope="col">Confidence</th>
-                <th scope="col">Score</th>
-                <th scope="col">Status</th>
-                <th scope="col">Reason</th>
-              </tr>
-            </thead>
-            <tbody>
-              <AnimatePresence>
-                {filteredDecisions.map((decision, i) => (
-                  <DecisionRow key={decision.id ?? `${decision.symbol}-${i}`} decision={decision} index={i} />
-                ))}
-              </AnimatePresence>
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {error && (
-        <div className="decision-log-error" role="alert">
-          <span>{error}</span>
-          <button type="button" onClick={refetch} className="decision-log-retry">Retry</button>
-        </div>
-      )}
-
-      {!error && loading && filteredDecisions.length === 0 && (
-        <div className="decision-log-empty">Loading…</div>
-      )}
-
-      {!error && !loading && filteredDecisions.length === 0 && (
-        <div className="decision-log-empty">
-          No decisions yet. The engine logs every evaluation, including HOLDs.
-        </div>
-      )}
+      <SkeletonContainer busy={isInitialLoading}>
+        {isInitialLoading ? (
+          <Skeleton lines={5} className="decision-log-skeleton" />
+        ) : error ? (
+          <div className="decision-log-error" role="alert">
+            <span>{error}</span>
+            <button type="button" onClick={refetch} className="decision-log-retry">Retry</button>
+          </div>
+        ) : filteredDecisions.length === 0 ? (
+          <div className="decision-log-empty">
+            No decisions yet. The engine logs every evaluation, including HOLDs.
+          </div>
+        ) : (
+          <div className="decision-log-table-container">
+            <table className="decision-log-table">
+              <caption><VisuallyHidden>Decision Log</VisuallyHidden></caption>
+              <thead>
+                <tr>
+                  <th scope="col">Time</th>
+                  <th scope="col">Symbol</th>
+                  <th scope="col">Action</th>
+                  <th scope="col">Confidence</th>
+                  <th scope="col">Score</th>
+                  <th scope="col">Status</th>
+                  <th scope="col">Reason</th>
+                </tr>
+              </thead>
+              <tbody>
+                <AnimatePresence>
+                  {filteredDecisions.map((decision, i) => (
+                    <DecisionRow key={decision.id ?? `${decision.symbol}-${i}`} decision={decision} index={i} />
+                  ))}
+                </AnimatePresence>
+              </tbody>
+            </table>
+          </div>
+        )}
+      </SkeletonContainer>
     </div>
   );
 }

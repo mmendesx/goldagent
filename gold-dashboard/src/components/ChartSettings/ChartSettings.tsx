@@ -1,5 +1,6 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useId } from 'react';
 import { useDashboardStore, selectChartIndicators } from '../../store';
+import { Button } from '../../design-system/Button';
 import './ChartSettings.css';
 
 interface ChartSettingsProps {
@@ -7,35 +8,60 @@ interface ChartSettingsProps {
 }
 
 export function ChartSettings({ settingsKey }: ChartSettingsProps) {
-  const [open, setOpen] = useState(false);
+  const [isOpen, setIsOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
-  const buttonRef = useRef<HTMLButtonElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const uid = useId();
+  const panelId = `chart-settings-panel-${uid.replace(/:/g, '')}`;
 
   const settings = useDashboardStore(selectChartIndicators(settingsKey));
   const setChartIndicators = useDashboardStore((s) => s.setChartIndicators);
 
   // Close on outside click
   useEffect(() => {
-    if (!open) return;
-    function handleClick(e: MouseEvent) {
-      if (panelRef.current && !panelRef.current.contains(e.target as Node) &&
-          buttonRef.current && !buttonRef.current.contains(e.target as Node)) {
-        setOpen(false);
+    if (!isOpen) return;
+    function handleMousedown(e: MouseEvent) {
+      if (
+        panelRef.current &&
+        !panelRef.current.contains(e.target as Node) &&
+        triggerRef.current &&
+        !triggerRef.current.contains(e.target as Node)
+      ) {
+        setIsOpen(false);
       }
     }
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, [open]);
+    document.addEventListener('mousedown', handleMousedown);
+    return () => document.removeEventListener('mousedown', handleMousedown);
+  }, [isOpen]);
 
-  // Close on Escape
+  // Focus trap + ESC dismiss
   useEffect(() => {
-    if (!open) return;
-    function handleKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') { setOpen(false); buttonRef.current?.focus(); }
+    if (!isOpen || !panelRef.current) return;
+    const focusable = panelRef.current.querySelectorAll<HTMLElement>(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+    );
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    first?.focus();
+
+    function handler(e: KeyboardEvent) {
+      if (e.key === 'Escape') {
+        setIsOpen(false);
+        triggerRef.current?.focus();
+      }
+      if (e.key === 'Tab') {
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last?.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first?.focus();
+        }
+      }
     }
-    document.addEventListener('keydown', handleKey);
-    return () => document.removeEventListener('keydown', handleKey);
-  }, [open]);
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [isOpen]);
 
   function updatePeriod(index: 0 | 1, value: string) {
     const n = parseInt(value, 10);
@@ -47,24 +73,28 @@ export function ChartSettings({ settingsKey }: ChartSettingsProps) {
 
   return (
     <div className="chart-settings">
-      <button
-        ref={buttonRef}
-        type="button"
-        className={`chart-settings__trigger${open ? ' chart-settings__trigger--active' : ''}`}
+      <Button
+        ref={triggerRef}
+        variant="ghost"
+        size="sm"
+        className={`chart-settings__trigger${isOpen ? ' chart-settings__trigger--active' : ''}`}
         aria-label="Chart settings"
-        aria-expanded={open}
+        aria-expanded={isOpen}
         aria-haspopup="dialog"
-        onClick={() => setOpen((v) => !v)}
+        aria-controls={panelId}
+        onClick={() => setIsOpen((v) => !v)}
       >
         ⚙
-      </button>
+      </Button>
 
-      {open && (
+      {isOpen && (
         <div
           ref={panelRef}
+          id={panelId}
           className="chart-settings__panel"
           role="dialog"
-          aria-label="Chart indicator settings"
+          aria-label="Chart Settings"
+          aria-modal="true"
         >
           {/* MA toggle */}
           <div className="chart-settings__row">
