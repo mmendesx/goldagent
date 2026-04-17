@@ -43,8 +43,13 @@ export function MetricItem({ label, severity, badge, ...rest }: MetricItemProps)
     .filter(Boolean)
     .join(" ");
 
+  const ariaValue =
+    "numericValue" in rest && rest.numericValue !== undefined
+      ? rest.format!(rest.numericValue)
+      : (rest as MetricItemStaticProps).value;
+
   return (
-    <div className="metric-item" aria-label={`${label}: ${value}`}>
+    <div className="metric-item" aria-label={`${label}: ${ariaValue}`}>
       <span className="metric-label">{label}</span>
       {"numericValue" in rest && rest.numericValue !== undefined ? (
         <AnimatedValue target={rest.numericValue} format={rest.format!} className={valueClassName} />
