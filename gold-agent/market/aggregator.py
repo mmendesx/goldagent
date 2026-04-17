@@ -14,8 +14,8 @@ import asyncio
 import logging
 from typing import Any, Callable, Coroutine
 
-from gold_agent.domain.types import Candle
-from gold_agent.storage import postgres, redis_client
+from domain.types import Candle
+from storage import postgres, redis_client
 
 logger = logging.getLogger(__name__)
 
@@ -117,7 +117,7 @@ class CandleAggregator:
             await redis_client.cache_candle(
                 candle.symbol,
                 candle.interval,
-                candle.model_dump(by_alias=True),
+                candle.model_dump(by_alias=True, mode="json"),
             )
         except Exception as e:
             logger.warning(
@@ -184,7 +184,7 @@ class CandleAggregator:
 
         message = {
             "type": "candle_update",
-            "payload": candle.model_dump(by_alias=True),
+            "payload": candle.model_dump(by_alias=True, mode="json"),
         }
 
         try:
