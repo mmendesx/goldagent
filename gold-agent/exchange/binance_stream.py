@@ -150,7 +150,7 @@ class BinanceStreamClient:
         for symbol in self._symbols:
             lower = symbol.lower()
 
-            kline_handle = await self._ws_client.kline(lower, interval_enum)
+            kline_handle = await self._ws_client.kline(lower, interval_enum.value)
             kline_handle.on("message", self._make_kline_callback(symbol))
 
             ticker_handle = await self._ws_client.mini_ticker(lower)
