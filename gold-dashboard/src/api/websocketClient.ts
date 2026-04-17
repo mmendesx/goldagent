@@ -2,6 +2,7 @@ import type { WebSocketMessage } from "../types";
 
 type MessageHandler = (message: WebSocketMessage) => void;
 type ConnectionStateHandler = (state: ConnectionState) => void;
+type ReconnectAttemptHandler = (attempt: number) => void;
 
 export type ConnectionState = "connecting" | "open" | "closed" | "reconnecting";
 
@@ -11,10 +12,15 @@ export class WebSocketClient {
   private socket: WebSocket | null = null;
   private messageHandlers = new Set<MessageHandler>();
   private connectionStateHandlers = new Set<ConnectionStateHandler>();
+  private reconnectAttemptHandlers = new Set<ReconnectAttemptHandler>();
   private reconnectAttempt = 0;
   private reconnectTimer: number | null = null;
   private isExplicitlyClosed = false;
   private currentState: ConnectionState = "closed";
+
+  getReconnectAttempts(): number {
+    return this.reconnectAttempt;
+  }
 
   connect(): void {
     this.isExplicitlyClosed = false;
@@ -45,6 +51,12 @@ export class WebSocketClient {
     return () => this.connectionStateHandlers.delete(handler);
   }
 
+  onReconnectAttempt(handler: ReconnectAttemptHandler): () => void {
+    this.reconnectAttemptHandlers.add(handler);
+    handler(this.reconnectAttempt);
+    return () => this.reconnectAttemptHandlers.delete(handler);
+  }
+
   subscribeToSymbols(symbols: string[]): void {
     if (this.socket?.readyState === WebSocket.OPEN) {
       this.socket.send(JSON.stringify({ action: "subscribe", symbols }));
@@ -62,6 +74,9 @@ export class WebSocketClient {
 
     this.socket.onopen = () => {
       this.reconnectAttempt = 0;
+      for (const handler of this.reconnectAttemptHandlers) {
+        handler(0);
+      }
       this.setState("open");
     };
 
@@ -94,6 +109,9 @@ export class WebSocketClient {
     this.setState("reconnecting");
     const delayMilliseconds = Math.min(1000 * 2 ** this.reconnectAttempt, 30000);
     this.reconnectAttempt += 1;
+    for (const handler of this.reconnectAttemptHandlers) {
+      handler(this.reconnectAttempt);
+    }
     this.reconnectTimer = window.setTimeout(() => {
       this.reconnectTimer = null;
       this.openConnection();

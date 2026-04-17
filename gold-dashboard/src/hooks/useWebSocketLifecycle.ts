@@ -5,6 +5,7 @@ import type { WebSocketMessage } from "../types";
 
 export function useWebSocketLifecycle(): void {
   const setConnectionState = useDashboardStore((s) => s.setConnectionState);
+  const setReconnectAttempts = useDashboardStore((s) => s.setReconnectAttempts);
   const appendOrUpdateCandle = useDashboardStore((s) => s.appendOrUpdateCandle);
   const upsertOpenPosition = useDashboardStore((s) => s.upsertOpenPosition);
   const removeOpenPosition = useDashboardStore((s) => s.removeOpenPosition);
@@ -15,6 +16,10 @@ export function useWebSocketLifecycle(): void {
   useEffect(() => {
     const unsubscribeState = webSocketClient.onConnectionStateChange((state) => {
       setConnectionState(state);
+    });
+
+    const unsubscribeAttempts = webSocketClient.onReconnectAttempt((attempt) => {
+      setReconnectAttempts(attempt);
     });
 
     const unsubscribeMessage = webSocketClient.subscribe((message: WebSocketMessage) => {
@@ -61,10 +66,12 @@ export function useWebSocketLifecycle(): void {
     return () => {
       unsubscribeMessage();
       unsubscribeState();
+      unsubscribeAttempts();
       webSocketClient.disconnect();
     };
   }, [
     setConnectionState,
+    setReconnectAttempts,
     appendOrUpdateCandle,
     upsertOpenPosition,
     removeOpenPosition,

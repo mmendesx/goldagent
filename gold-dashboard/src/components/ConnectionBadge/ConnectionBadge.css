@@ -1,0 +1,72 @@
+.connection-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  border: 1px solid transparent;
+}
+
+.connection-badge__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.connection-badge__label {
+  white-space: nowrap;
+}
+
+/* open → green */
+.connection-badge--open {
+  background-color: rgba(38, 166, 91, 0.1);
+  border-color: rgba(38, 166, 91, 0.3);
+  color: var(--color-positive);
+}
+
+.connection-badge--open .connection-badge__dot {
+  background-color: var(--color-positive);
+  box-shadow: 0 0 0 2px rgba(38, 166, 91, 0.25);
+  animation: pulse-green 2s ease-in-out infinite;
+}
+
+/* connecting / reconnecting → yellow */
+.connection-badge--connecting,
+.connection-badge--reconnecting {
+  background-color: rgba(243, 156, 18, 0.1);
+  border-color: rgba(243, 156, 18, 0.3);
+  color: var(--color-warning);
+}
+
+.connection-badge--connecting .connection-badge__dot,
+.connection-badge--reconnecting .connection-badge__dot {
+  background-color: var(--color-warning);
+  animation: pulse-yellow 1s ease-in-out infinite;
+}
+
+/* closed → red */
+.connection-badge--closed {
+  background-color: rgba(231, 76, 60, 0.1);
+  border-color: rgba(231, 76, 60, 0.3);
+  color: var(--color-negative);
+}
+
+.connection-badge--closed .connection-badge__dot {
+  background-color: var(--color-negative);
+}
+
+@keyframes pulse-green {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+@keyframes pulse-yellow {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}

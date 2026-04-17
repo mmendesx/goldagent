@@ -20,6 +20,8 @@ interface DashboardState {
   // Connection state
   connectionState: "connecting" | "open" | "closed" | "reconnecting";
   setConnectionState: (state: DashboardState["connectionState"]) => void;
+  reconnectAttempts: number;
+  setReconnectAttempts: (count: number) => void;
 
   // Selected symbol/interval (chart context)
   selectedSymbol: TradingSymbol;
@@ -80,6 +82,8 @@ export function candleToChartCandle(candle: Candle): ChartCandle {
 export const useDashboardStore = create<DashboardState>((set) => ({
   connectionState: "closed",
   setConnectionState: (state) => set({ connectionState: state }),
+  reconnectAttempts: 0,
+  setReconnectAttempts: (count) => set({ reconnectAttempts: count }),
 
   selectedSymbol: "BTCUSDT",
   selectedInterval: "5m",

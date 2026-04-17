@@ -1,0 +1,38 @@
+.offline-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 20px;
+  background-color: var(--color-negative, #e74c3c);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+
+.offline-banner__icon {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #fff;
+  opacity: 0.9;
+  animation: offline-pulse 1.2s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+.offline-banner__text {
+  line-height: 1;
+}
+
+.offline-banner__attempts {
+  opacity: 0.85;
+  font-weight: 500;
+}
+
+@keyframes offline-pulse {
+  0%, 100% { opacity: 0.9; }
+  50% { opacity: 0.3; }
+}
