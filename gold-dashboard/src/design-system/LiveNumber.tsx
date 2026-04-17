@@ -1,6 +1,9 @@
+import { useEffect, useRef, useState } from "react";
 import { useReducedMotion } from "motion/react";
 import CountUp from "../vendor/react-bits/CountUp";
 import { VisuallyHidden } from "./VisuallyHidden";
+
+const ANNOUNCE_THROTTLE_MS = 3000;
 
 export interface LiveNumberProps {
   value: number;
@@ -20,23 +23,50 @@ export function LiveNumber({
   className,
 }: LiveNumberProps) {
   const prefersReducedMotion = useReducedMotion();
+  const formatRef = useRef(format);
+  useEffect(() => { formatRef.current = format; });
+
+  const [announcedText, setAnnouncedText] = useState(() => format(value));
+  const lastAnnounceRef = useRef<number>(Date.now());
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    const now = Date.now();
+    const elapsed = now - lastAnnounceRef.current;
+
+    if (elapsed >= ANNOUNCE_THROTTLE_MS) {
+      lastAnnounceRef.current = now;
+      setAnnouncedText(formatRef.current(value));
+    } else {
+      if (timerRef.current) clearTimeout(timerRef.current);
+      timerRef.current = setTimeout(() => {
+        lastAnnounceRef.current = Date.now();
+        setAnnouncedText(formatRef.current(value));
+        timerRef.current = null;
+      }, ANNOUNCE_THROTTLE_MS - elapsed);
+    }
+
+    return () => {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
+    };
+  }, [value]);
 
   if (prefersReducedMotion) {
     return (
-      <span aria-live="polite" className={className}>
+      <span className={className}>
         {format(value)}
+        <VisuallyHidden aria-live="polite" aria-atomic="true">
+          {announcedText}
+        </VisuallyHidden>
       </span>
     );
   }
 
   return (
     <span className={className}>
-      {/*
-       * CountUp renders intermediate animated values that would spam
-       * screen readers if aria-live were on the animated span directly.
-       * We hide the animation from AT and announce only the final
-       * formatted value through a visually-hidden polite region.
-       */}
       <span aria-hidden="true">
         <CountUp
           from={from}
@@ -45,7 +75,9 @@ export function LiveNumber({
           decimalPlaces={decimalPlaces}
         />
       </span>
-      <VisuallyHidden aria-live="polite">{format(value)}</VisuallyHidden>
+      <VisuallyHidden aria-live="polite" aria-atomic="true">
+        {announcedText}
+      </VisuallyHidden>
     </span>
   );
 }

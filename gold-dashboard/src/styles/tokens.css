@@ -84,6 +84,7 @@
 
   /* ---- Accents ---- */
   --color-accent-brand: #f0b429;
+  --color-accent-brand-light: #ffd580;
   --color-accent-success: #26a65b;
   --color-accent-warning: #f39c12;
   --color-accent-danger: #e74c3c;
@@ -134,6 +135,7 @@
 
   /* ---- Accents ---- */
   --color-accent-brand: #c88f00;
+  --color-accent-brand-light: #ffd580;
   --color-accent-success: #1a7a42;
   --color-accent-warning: #b45309;
   --color-accent-danger: #c0392b;

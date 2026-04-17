@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useDashboardStore } from "../../store";
 import { getDrawdownSeverity, dailyPnl, cumulativePnl, winRate as computeWinRate, maxDrawdown } from "../../utils";
 import { restClient } from "../../api";
-import { MetricCard, LiveNumber, Badge } from "../../design-system";
+import { MetricCard, LiveNumber, Badge, Button } from "../../design-system";
 import { GradientText } from "../../vendor/react-bits/GradientText";
 import "./MetricsBar.css";
 
@@ -15,6 +15,14 @@ export function MetricsBar() {
   const setExchangeBalances = useDashboardStore((state) => state.setExchangeBalances);
   const closedPositions = useDashboardStore((state) => state.closedPositions);
   const [balanceError, setBalanceError] = useState<string | null>(null);
+
+  const gradientColors = useMemo(() => {
+    if (typeof document === "undefined") return ["#f0b429", "#ffd580", "#f0b429"] as [string, string, string];
+    const cs = getComputedStyle(document.documentElement);
+    const brand = cs.getPropertyValue("--color-accent-brand").trim() || "#f0b429";
+    const brandLight = cs.getPropertyValue("--color-accent-brand-light").trim() || "#ffd580";
+    return [brand, brandLight, brand] as [string, string, string];
+  }, []);
 
   const analytics = useMemo(() => ({
     daily: dailyPnl(closedPositions),
@@ -76,7 +84,7 @@ export function MetricsBar() {
         <MetricCard
           label="Balance"
           value={
-            <GradientText colors={["#f0b429", "#ffd580", "#f0b429"]} animationSpeed={8}>
+            <GradientText colors={gradientColors} animationSpeed={8}>
               {balanceLiveNumber}
             </GradientText>
           }
@@ -222,7 +230,7 @@ export function MetricsBar() {
       {balanceError && (
         <div className="metrics-balance-error" role="alert" title={balanceError}>
           Balance error
-          <button type="button" onClick={fetchBalances} style={{ marginLeft: 6, cursor: "pointer" }}>↺</button>
+          <Button variant="ghost" size="sm" onClick={fetchBalances} aria-label="Retry balance fetch" style={{ marginLeft: 6 }}>↺</Button>
         </div>
       )}
     </section>

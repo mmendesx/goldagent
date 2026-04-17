@@ -211,7 +211,15 @@ export const useDashboardStore = create<DashboardState>()(
       setTheme: (t) => set({ theme: t }),
     }),
     {
-      name: "gold-dashboard-indicators",
+      name: "gold-dashboard-prefs",
+      version: 1,
+      migrate: (persisted: unknown, fromVersion: number) => {
+        if (fromVersion === 0) {
+          // v0 had key "gold-dashboard-indicators"; shape unchanged
+          return persisted as { chartIndicators: Record<string, unknown>; theme: string };
+        }
+        return persisted as { chartIndicators: Record<string, unknown>; theme: string };
+      },
       partialize: (state) => ({ chartIndicators: state.chartIndicators, theme: state.theme }),
     }
   )
