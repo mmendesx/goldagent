@@ -105,6 +105,7 @@ export type ChartInterval = "1m" | "5m" | "15m" | "1h";
 
 export type WebSocketMessage =
   | { type: "candle_update"; payload: Candle }
+  | { type: "ticker_update"; payload: TickerUpdate }
   | { type: "position_update"; payload: Position }
   | { type: "position_closed"; payload: Position }
   | { type: "trade_executed"; payload: Position }

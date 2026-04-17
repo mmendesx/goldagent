@@ -2,167 +2,252 @@
 
 Manual verification guide for validating the dashboard end-to-end against the live backend.
 
----
-
-## Prerequisites
-
-All commands are run from the **monorepo root** (`/workspace/goldagent`) unless otherwise noted.
+All commands run from the **monorepo root** (`/Users/mmendesx/workspace/goldagent`) unless noted.
 
 ---
 
-## 1. Start Infrastructure
+## Quick Start
+
+### 1. Environment setup
+
+Copy the example env file and fill in your credentials:
 
 ```bash
-docker compose up -d postgres redis
+cp .env.example .env
 ```
 
-DevTools check: nothing yet — just confirm the command exits cleanly.
+Required variables:
 
----
+| Variable | Description |
+|---|---|
+| `BINANCE_API_KEY` | Binance API key |
+| `BINANCE_API_SECRET` | Binance API secret |
+| `POLYMARKET_API_KEY` | Polymarket API key |
+| `POLYMARKET_API_SECRET` | Polymarket API secret |
+| `POLYMARKET_API_PASSPHRASE` | Polymarket passphrase |
+| `POLYMARKET_PRIVATE_KEY` | Polymarket private key |
+| `POLYMARKET_WALLET_ADDRESS` | Polymarket wallet address |
+| `GOLD_LLM_API_KEY` | Anthropic API key |
 
-## 2. Run Backend Migrations
+DB and Redis: the default Docker Compose values work out of the box — no changes needed unless you're running a custom setup.
 
-Using [golang-migrate](https://github.com/golang-migrate/migrate) CLI:
+### 2. Start all services
 
 ```bash
-migrate -path gold-backend/migrations \
-        -database "postgres://postgres:postgres@localhost:5432/goldagent?sslmode=disable" \
-        up
+docker compose up -d
 ```
 
-Adjust the DSN to match your local `docker-compose.yml` credentials. On first run you should see one line per migration file with no errors.
+This starts the Python backend (FastAPI), PostgreSQL, and Redis in one command. Wait ~5 seconds for the backend to finish initializing.
 
----
-
-## 3. Start Backend (Dry-Run Mode)
+### 3. Verify backend health
 
 ```bash
-cd gold-backend
-GOLD_DRY_RUN=true go run ./cmd/gold
+curl http://localhost:8080/api/v1/metrics
 ```
 
-No Binance API keys are required in dry-run mode. The backend exposes:
-- REST at `http://localhost:8080/api/v1/*`
-- WebSocket at `ws://localhost:8080/ws/v1/stream`
+Expected: `200 OK` with a JSON body containing portfolio metrics fields. Any error here means the backend is not ready — check `docker compose logs` for details.
 
-DevTools check: the terminal should emit structured JSON log lines, e.g. `{"level":"info","msg":"server started","addr":":8080"}`.
-
----
-
-## 4. Start Frontend
+### 4. Start frontend dev server
 
 ```bash
-cd gold-dashboard
-npm run dev
+cd gold-dashboard && npm run dev
 ```
 
-The dev server starts at `http://localhost:3000`.
+Frontend available at `http://localhost:5173`.
 
 ---
 
-## 5. Open the Dashboard
+## API Contracts
 
-Navigate to `http://localhost:3000` in a browser.
+### Base URL
 
-**DevTools — Network tab**: you should see three initial REST calls fire immediately on page load:
-- `GET /api/v1/metrics` → 200
-- `GET /api/v1/positions` → 200
-- `GET /api/v1/positions/history?limit=100&offset=0` → 200
+`http://localhost:8080`
 
-**DevTools — WS tab**: a WebSocket connection to `ws://localhost:8080/ws/v1/stream` should appear with status `101 Switching Protocols`.
+### Paginated response envelope
 
-**DevTools — Console**: no errors or uncaught exceptions at startup.
+Endpoints that return lists use this shape:
 
----
+```json
+{
+  "items": [],
+  "limit": 50,
+  "offset": 0,
+  "count": 0,
+  "hasMore": false
+}
+```
 
-## 6. Visual Checks
+### REST endpoints
 
-- [ ] Dashboard loads with a **dark theme** (near-black background `#12121a`)
-- [ ] **Connection badge** in the header shows a green dot labeled **"Live"**
-- [ ] **Metrics bar** is visible at the top (values will be zeros on a fresh database)
+| Method | Path | Query params | Response shape |
+|--------|------|--------------|----------------|
+| GET | `/api/v1/candles` | `symbol`, `interval`, `limit`, `offset` | `Paginated<Candle>` |
+| GET | `/api/v1/positions` | `status` (e.g. `OPEN`) | `Position[]` |
+| GET | `/api/v1/positions/history` | `limit`, `offset` | `Paginated<Position>` |
+| GET | `/api/v1/trades` | `limit`, `offset` | `Paginated<Position>` |
+| GET | `/api/v1/decisions` | `limit`, `offset` | `Paginated<Decision>` |
+| GET | `/api/v1/metrics` | — | `PortfolioMetrics` |
+| GET | `/api/v1/exchange/balances` | — | `ExchangeBalances` |
 
----
+#### Example candles request
 
-## 7. Tab Navigation
+```
+GET /api/v1/candles?symbol=BTCUSDT&interval=5m&limit=500&offset=0
+```
 
-- [ ] Click **Chart** tab → URL changes to `/chart`, PriceChart renders — no full page reload
-- [ ] Click **Open Positions** → URL changes to `/positions`
-- [ ] Click **Trade History** → URL changes to `/history`
-- [ ] Click **Decision Log** → URL changes to `/decisions`
-- [ ] Clicking back and forward in the browser navigates between tabs correctly
+#### Example positions request
 
-DevTools check: no additional full-page navigation events — only `fetch`/`xhr` requests for data.
+```
+GET /api/v1/positions?status=OPEN
+```
 
----
+Response is a bare array (`Position[]`), not paginated.
 
-## 8. Chart Tab
+#### Example paginated positions history request
 
-- [ ] Chart container renders (dark candlestick chart area, even if empty)
-- [ ] **Symbol selector** dropdown shows all 4 options: BTCUSDT, ETHUSDT, SOLUSDT, BNBUSDT
-- [ ] **Interval buttons** are visible: 1m, 5m, 15m, 1h, 4h, 1D — the active one is highlighted
-- [ ] Switching symbol or interval triggers a new `GET /api/v1/candles` request (visible in Network tab)
-- [ ] No JavaScript errors appear in Console after switching symbol/interval
-
-DevTools — Network: `GET /api/v1/candles?symbol=BTCUSDT&interval=5m&limit=500` should return a `200` with a `{ items: [], ... }` body on a fresh database.
-
----
-
-## 9. Open Positions Tab
-
-- [ ] Page renders without errors
-- [ ] **Empty state message** is displayed (no positions on first run)
-
-DevTools — Network: `GET /api/v1/positions` returns `[]`.
+```
+GET /api/v1/positions/history?limit=50&offset=0
+```
 
 ---
 
-## 10. Trade History Tab
+## WebSocket Events
 
-- [ ] Page renders without errors
-- [ ] **Empty state message** is displayed
-- [ ] Pagination controls (Previous / Next) are visible and Previous is disabled on page 1
+### Connection
 
-DevTools — Network: `GET /api/v1/positions/history?limit=50&offset=0` returns `{ items: [], hasMore: false, ... }`.
+```
+ws://localhost:8080/ws/v1/stream
+```
+
+All messages are JSON with a `type` field that identifies the event.
+
+### Event types
+
+| `type` value | Payload shape | Description |
+|---|---|---|
+| `candle_update` | `Candle` | New or updated candlestick |
+| `ticker_update` | `{ symbol, price, timestamp }` | Real-time price tick |
+| `position_update` | `Position` | Open position changed |
+| `position_closed` | `Position` | Position has been closed |
+| `metric_update` | `PortfolioMetrics` | Portfolio metrics recalculated |
+| `decision_made` | `Decision` | Agent decision, includes reasoning field |
+
+### Parsing example
+
+```ts
+socket.onmessage = (event) => {
+  const msg = JSON.parse(event.data)
+  switch (msg.type) {
+    case 'ticker_update':
+      // msg.payload: { symbol: string, price: number, timestamp: string }
+      break
+    case 'candle_update':
+      // msg.payload: Candle
+      break
+    // ...
+  }
+}
+```
 
 ---
 
-## 11. Decision Log Tab
+## Frontend Integration
 
-- [ ] Page renders without errors
-- [ ] **Empty state message** is displayed, or a table of decisions appears if the backend has been running long enough in dry-run mode
+### Environment variables
+
+Controlled by `gold-dashboard/.env.local` (create if it doesn't exist):
+
+```
+VITE_API_BASE_URL=http://localhost:8080
+VITE_WS_URL=ws://localhost:8080/ws/v1/stream
+```
+
+These default to the above values in development. Only override if the backend runs on a different host or port.
+
+### Manual checks — Network tab (DevTools)
+
+On dashboard load, confirm these fire with 200:
+
+- [ ] `GET /api/v1/metrics` → `200`
+- [ ] `GET /api/v1/positions?status=OPEN` → `200`
+- [ ] `GET /api/v1/positions/history?limit=50&offset=0` → `200`
+
+WebSocket tab: confirm a connection to `ws://localhost:8080/ws/v1/stream` with status `101 Switching Protocols`.
+
+Console: no uncaught errors or exceptions on startup.
+
+### Tab navigation checks
+
+- [ ] **Chart** tab → URL `/chart`, chart renders
+- [ ] **Open Positions** tab → URL `/positions`, table or empty state renders
+- [ ] **Trade History** tab → URL `/history`, pagination visible (Previous disabled on page 1)
+- [ ] **Decision Log** tab → URL `/decisions`, symbol filter dropdown present
+
+### Chart tab
+
+- [ ] Symbol selector shows: BTCUSDT, ETHUSDT, SOLUSDT, BNBUSDT
+- [ ] Interval buttons visible: 1m, 5m, 15m, 1h — active one highlighted
+- [ ] Switching symbol or interval fires a new `GET /api/v1/candles` request
+
+Network check: `GET /api/v1/candles?symbol=BTCUSDT&interval=5m&limit=500&offset=0` returns `200` with `{ items: [], ... }` on a fresh database.
+
+### Open Positions tab
+
+- [ ] Renders without errors
+- [ ] Empty state message shown when no positions exist
+
+Network check: `GET /api/v1/positions?status=OPEN` returns `[]`.
+
+### Trade History tab
+
+- [ ] Renders without errors
+- [ ] Empty state shown when no trades exist
+- [ ] Pagination controls render; Previous is disabled on page 1
+
+Network check: `GET /api/v1/positions/history?limit=50&offset=0` returns `{ items: [], hasMore: false, ... }`.
+
+### Decision Log tab
+
+- [ ] Renders without errors
 - [ ] Symbol filter dropdown shows ALL, BTCUSDT, ETHUSDT, SOLUSDT, BNBUSDT
 
-DevTools — Network: `GET /api/v1/decisions?limit=100&offset=0` returns `200`.
+Network check: `GET /api/v1/decisions?limit=50&offset=0` returns `200`.
+
+### Connection badge
+
+- [ ] Shows green "Live" dot when backend is reachable
+- [ ] Stop the backend (`docker compose stop`) → badge changes to "Offline" (red) or "Connecting…" (amber) within ~5 seconds
+- [ ] Restart the backend (`docker compose start`) → badge returns to "Live" within ~30 seconds (exponential backoff), no page refresh required
 
 ---
 
-## 12. Backend Log Verification
+## Troubleshooting
 
-In the terminal running the backend, confirm:
-- Logs are structured JSON (one JSON object per line)
-- Each incoming request logs method, path, and status code
-- No `ERROR`-level entries during normal idle operation
+### Backend not responding on port 8080
 
----
+Check container status and logs:
 
-## 13. Connection Badge — Offline State
+```bash
+docker compose ps
+docker compose logs --tail=50
+```
 
-- [ ] Stop the backend (`Ctrl+C` in its terminal)
-- [ ] Within ~5 seconds the connection badge changes to show **"Offline"** (red dot) or **"Connecting…"** (amber) while attempting to reconnect
+Common causes: missing `.env` variables, port already in use, DB migration failed on first boot.
 
-DevTools — WS tab: the WebSocket connection should show as closed/failed.
+### WebSocket connection not establishing
 
----
+1. Confirm backend is healthy: `curl http://localhost:8080/api/v1/metrics`
+2. Check `VITE_WS_URL` in `gold-dashboard/.env.local` matches the backend address
+3. Inspect the WS tab in DevTools for the close code and reason
 
-## 14. Connection Badge — Reconnect
+### Candles endpoint returns empty items on a live system
 
-- [ ] Restart the backend: `GOLD_DRY_RUN=true go run ./cmd/gold`
-- [ ] Within ~30 seconds (exponential backoff) the badge returns to **"Live"** (green dot) without a page refresh
+The backend only stores candles it has observed since startup. Wait for a few minutes of uptime, or check that the Binance API key is valid and not rate-limited.
 
----
+### Frontend shows stale data after backend restart
 
-## Notes
+The WebSocket reconnects automatically (exponential backoff, up to ~30 seconds). REST data refreshes on the next poll or user-triggered navigation. A manual page refresh forces a clean state.
 
-- All REST and WebSocket URLs are controlled by environment variables: `VITE_API_BASE_URL` and `VITE_WS_URL`. In development these default to `http://localhost:8080` and `ws://localhost:8080/ws/v1/stream` respectively.
-- If the backend is on a different port, create `gold-dashboard/.env.local` with the correct values before running `npm run dev`.
-- The frontend gracefully handles all backend errors — failed fetches log a `console.warn` and display an error message in the relevant component; they do not crash the page.
+### Paginated endpoint returns unexpected shape
+
+All list endpoints except `GET /api/v1/positions` return the paginated envelope. If a consumer expects a bare array from `/api/v1/positions/history` or `/api/v1/trades`, it will receive an object — read `items` from the response.
