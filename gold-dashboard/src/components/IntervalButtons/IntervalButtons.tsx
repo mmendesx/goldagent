@@ -2,7 +2,7 @@ import { useDashboardStore } from "../../store";
 import type { ChartInterval } from "../../types";
 import "./IntervalButtons.css";
 
-const AVAILABLE_INTERVALS: ChartInterval[] = ["1m", "5m", "15m", "1h", "4h", "1D"];
+const AVAILABLE_INTERVALS: ChartInterval[] = ["1m", "5m", "15m", "1h"];
 
 export function IntervalButtons() {
   const selectedInterval = useDashboardStore((state) => state.selectedInterval);

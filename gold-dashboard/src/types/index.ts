@@ -91,7 +91,7 @@ export interface Decision {
 }
 
 export type TradingSymbol = "BTCUSDT" | "ETHUSDT" | "SOLUSDT" | "BNBUSDT";
-export type ChartInterval = "1m" | "5m" | "15m" | "1h" | "4h" | "1D";
+export type ChartInterval = "1m" | "5m" | "15m" | "1h";
 
 export type WebSocketMessage =
   | { type: "candle_update"; payload: Candle }
